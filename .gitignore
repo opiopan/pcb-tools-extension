@@ -1,0 +1,5 @@
+.vscode
+.python-version
+*.pyc
+__pycache__
+pcb_tools_extension.egg-info
