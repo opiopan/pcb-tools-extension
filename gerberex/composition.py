@@ -101,7 +101,7 @@ class GerberComposition(Composition):
 
         if not self.settings:
             self.settings = file.settings
-            self.param_statements = file.header
+            self.param_statements = [file.header]
 
 
     def _register_aperture_macro(self, statement):

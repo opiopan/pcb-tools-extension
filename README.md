@@ -5,8 +5,8 @@ This library is designed based on [PCB tools](https://github.com/curtacircuitos/
 
 PCB tools extension adds following function  to PCB tools.
 
-- Rotate PCB data (imprementation is not completed)
-- Save loding PCB data
+- Rotate PCB data
+- Write back loded PCB data (original PCB tools does not work completely)
 - Merge multiple PCB data
 - Translate DXF file to gerber data
 
@@ -25,11 +25,15 @@ ctx.merge(metal1)
 
 metal2 = gerberex.read('board2.gtl')
 metal2.to_metric()
+metal2.rotate(-20)
 metal2.offset(30, 0)
 ctx.merge(metal2)
 
 ctx.dump('panelized-board.gtl')
 ```
+
+```rotate()``` method can be used to rotate PCB data counterclockwise. you have to specify angle in degree<br>
+```offset()``` method can be used to move PCB data. Specified offset values are interpreted according to unit setting of PCB data. In case of the above code, ```board2.gtl``` move to 30mm left since ```to_metric()``` is called.
 
 In case of Excellon drill data, you have to use ```DrillCompositon``` instead of ```GerberComposition```.
 
@@ -43,6 +47,7 @@ ctx.merge(drill1)
 
 drill2 = gerberex.read('board2.txt')
 drill2.to_metric()
+drill2.rotate(-20)
 drill2.offset(30, 0)
 ctx.merge(drill2)
 

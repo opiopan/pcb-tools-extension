@@ -3,3 +3,4 @@
 *.pyc
 __pycache__
 pcb_tools_extension.egg-info
+test/outputs

@@ -7,12 +7,20 @@ from gerber.utils import *
 from gerber.am_statements import *
 from gerber.am_eval import OpCode
 
-from gerberex.am_expression import eval_macro
+from gerberex.am_expression import eval_macro, AMConstantExpression, AMOperatorExpression
 
 class AMPrimitiveDef(AMPrimitive):
-    def __init__(self, code, exposure=None, rotation=0):
+    def __init__(self, code, exposure=None, rotation=None):
         super(AMPrimitiveDef, self).__init__(code, exposure)
+        if not rotation:
+            rotation = AMConstantExpression(0)
         self.rotation = rotation
+
+    def rotate(self, angle, center=None):
+        self.rotation = AMOperatorExpression(AMOperatorExpression.ADD, 
+                                             self.rotation, 
+                                             AMConstantExpression(float(angle)))
+        self.rotation = self.rotation.optimize()
 
     def to_inch(self):
         pass
@@ -44,12 +52,12 @@ class AMCommentPrimitiveDef(AMPrimitiveDef):
 class AMCirclePrimitiveDef(AMPrimitiveDef):
     @classmethod
     def from_modifiers(cls, code, modifiers):
-        exposure = 'on' if modifiers[0] == 1 else 'off',
-        diameter = modifiers[1],
-        center_x = modifiers[2],
-        center_y = modifiers[3],
+        exposure = 'on' if modifiers[0].value == 1 else 'off'
+        diameter = modifiers[1]
+        center_x = modifiers[2]
+        center_y = modifiers[3]
         rotation = modifiers[4]
-        return cls(code, expressions, center_x, center_y, rotation)
+        return cls(code, exposure, diameter, center_x, center_y, rotation)
 
     def __init__(self, code, exposure, diameter, center_x, center_y, rotation):
         super(AMCirclePrimitiveDef, self).__init__(code, exposure, rotation)
@@ -87,7 +95,7 @@ class AMVectorLinePrimitiveDef(AMPrimitiveDef):
     @classmethod
     def from_modifiers(cls, code, modifiers):
         code = code
-        exposure = 'on' if modifiers[0] == 1 else 'off'
+        exposure = 'on' if modifiers[0].value == 1 else 'off'
         width = modifiers[1]
         start_x = modifiers[2]
         start_y = modifiers[3]
@@ -141,7 +149,7 @@ class AMCenterLinePrimitiveDef(AMPrimitiveDef):
     @classmethod
     def from_modifiers(cls, code, modifiers):
         code = code
-        exposure = 'on' if modifiers[0] == 1 else 'off'
+        exposure = 'on' if modifiers[0].value == 1 else 'off'
         width = modifiers[1]
         height = modifiers[2]
         x = modifiers[3]
@@ -191,7 +199,7 @@ class AMOutlinePrimitiveDef(AMPrimitiveDef):
     def from_modifiers(cls, code, modifiers):
         num_points = modifiers[1] + 1
         code = code
-        exposure = 'on' if modifiers[0] == 1 else 'off'
+        exposure = 'on' if modifiers[0].value == 1 else 'off'
         addrs = modifiers[2:num_points * 2]
         rotation = modifiers[3 + num_points * 2]
         return cls(code, exposure, addrs, rotation)
@@ -231,7 +239,7 @@ class AMPolygonPrimitiveDef(AMPrimitiveDef):
     @classmethod
     def from_modifiers(cls, code, modifiers):
         code = code
-        exposure = 'on' if modifiers[0] == 1 else 'off'
+        exposure = 'on' if modifiers[0].value == 1 else 'off'
         vertices = modifiers[1]
         x = modifiers[2]
         y = modifiers[3]
@@ -416,6 +424,9 @@ class AMVariableDef(object):
         for i in self.value.to_instructions():
             yield i
         yield (OpCode.STORE, self.number)
+
+    def rotate(self, angle, center=None):
+        pass
 
 def to_primitive_defs(instructions):
     classes = {

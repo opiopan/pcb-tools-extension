@@ -111,7 +111,7 @@ class DxfArcStatement(DxfStatement):
                                settings.zero_suppression),
             write_gerber_value(begin_y, settings.format,
                                settings.zero_suppression),
-            '03' if deg0 > deg1 else '02',
+            '03',
             write_gerber_value(end_x, settings.format,
                                settings.zero_suppression),
             write_gerber_value(end_y, settings.format,

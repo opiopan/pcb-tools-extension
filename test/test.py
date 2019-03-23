@@ -1,3 +1,4 @@
+import os
 import gerberex
 from gerberex.dxf import DxfFile
 import gerber
@@ -44,9 +45,18 @@ def merge2():
     ctx.dump('test-merged.TXT')
 
 
+os.chdir(os.path.dirname(__file__))
+
 #merge2()
 
-file = gerberex.read('outline.dxf')
+file = gerberex.read('data/test.GTL')
+file.rotate(45)
+file.write('outputs/test_changed.GTL')
+file = gerberex.read('data/test.TXT')
+file.rotate(45)
+file.write('outputs/test_changed.TXT')
+
+file = gerberex.read('data/outline.dxf')
 file.to_metric()
 w = file.width
 file.draw_mode = DxfFile.DM_FILL

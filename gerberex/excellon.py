@@ -6,6 +6,7 @@
 from gerber.excellon import (ExcellonParser, detect_excellon_format, ExcellonFile)
 from gerber.excellon_statements import UnitStmt
 from gerber.cam import FileSettings
+from gerberex.utility import rotate
 
 def loads(data, filename=None, settings=None, tools=None, format=None):
     if not settings:
@@ -26,6 +27,12 @@ class ExcellonFileEx(ExcellonFile):
 
     def __init__(self, statements, tools, hits, settings, filename=None):
         super(ExcellonFileEx, self).__init__(statements, tools, hits, settings, filename)
+
+    def rotate(self, angle, center=(0,0)):
+        if angle % 360 == 0:
+            return
+        for hit in self.hits:
+            hit.position = rotate(hit.position[0], hit.position[1], angle, center)
 
 class UnitStmtEx(UnitStmt):
     @classmethod
