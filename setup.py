@@ -11,7 +11,7 @@ import os
 
 METADATA = {
     'name': 'pcb-tools-extension',
-    'version': 0.1,
+    'version': 0.1.1,
     'author': 'Hiroshi Murayama <opiopan@gmail.com>',
     'author_email': "opiopan@gmail.com",
     'description': ("Extension for pcb-tools package to panelize gerber files"),
