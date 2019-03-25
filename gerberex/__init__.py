@@ -2,6 +2,13 @@
 # -*- coding: utf-8 -*-
 
 # Copyright 2019 Hiroshi Murayama <opiopan@gmail.com>
+"""
+Gerber Tools Extension
+======================
+**Gerber Tools Extenstion**
+gerber-tools-extension is a extention package for gerber-tools.
+This package provide panelizing of PCB fucntion.
+"""
 
 from gerberex.common import (read, loads)
 from gerberex.composition import (GerberComposition, DrillComposition)

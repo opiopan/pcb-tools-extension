@@ -9,9 +9,12 @@
 
 import os
 
+def read(fname):
+    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+
 METADATA = {
     'name': 'pcb-tools-extension',
-    'version': 0.1.1,
+    'version': "0.1.1",
     'author': 'Hiroshi Murayama <opiopan@gmail.com>',
     'author_email': "opiopan@gmail.com",
     'description': ("Extension for pcb-tools package to panelize gerber files"),
@@ -19,10 +22,16 @@ METADATA = {
     'keywords': "pcb gerber tools extension",
     'url': "http://github.com/opiopan/pcb-tools-extension",
     'packages': ['gerberex'],
+    'long_description': read('README.md'),
     'classifiers':[
         "Development Status :: 3 - Alpha",
         "Topic :: Utilities",
-        "License :: OSI Approved :: Apple Public Source License",
+        "License :: OSI Approved :: Apache Software License",
+        "Programming Language:: Python:: 2",
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: 3.4',
     ],
 }
 
