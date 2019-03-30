@@ -127,10 +127,13 @@ class DrillComposition(Composition):
         self.header2_statements = []
         self.tools = []
         self.hits = []
+        self.dxf_statements = []
     
     def merge(self, file):
         if isinstance(file, gerberex.excellon.ExcellonFileEx):
             self._merge_excellon(file)
+        elif isinstance(file, gerberex.DxfFile):
+            self._merge_dxf(file)
         else:
             raise Exception('unsupported file type')
 
@@ -147,6 +150,9 @@ class DrillComposition(Composition):
                 for h in self.hits:
                     if h.tool.number == t.number:
                         yield CoordinateStmt(*h.position).to_excellon(self.settings)
+                for num, statement in self.dxf_statements:
+                    if num == t.number:
+                        yield statement.to_excellon(self.settings)
             yield EndOfProgramStmt().to_excellon()
         
         with open(path, 'w') as f:
@@ -186,6 +192,22 @@ class DrillComposition(Composition):
             hit.tool = tool_map[hit.tool.number]
             self.hits.append(hit)
     
+    def _merge_dxf(self, file):
+        if not self.settings:
+            self.settings = file.settings
+        else:
+            if self.settings.units == 'metric':
+                file.to_metric()
+            else:
+                file.to_inch()
+
+        if not self.header1_statements:
+            self.header1_statements = file.header
+            self.header2_statements = file.header2
+        
+        tool = self._register_tool(ExcellonTool(self.settings, number=1, diameter=file.width))
+        self.dxf_statements.append((tool.number, file.statements))
+
     def _register_tool(self, tool):
         for existing in self.tools:
             if existing.equivalent(tool):

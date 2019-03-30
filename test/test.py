@@ -49,6 +49,31 @@ os.chdir(os.path.dirname(__file__))
 
 #merge2()
 
+ctx = gerberex.DrillComposition()
+base = gerberex.read('data/base.txt')
+dxf = gerberex.read('data/mousebites.dxf')
+dxf.draw_mode = DxfFile.DM_MOUSE_BITES
+dxf.to_metric()
+dxf.width = 0.5
+ctx.merge(base)
+ctx.merge(dxf)
+ctx.dump('outputs/merged.txt')
+
+dxf = gerberex.read('data/mousebite.dxf')
+dxf.zero_suppression = 'leading'
+dxf.write('outputs/a.gtl')
+dxf.draw_mode = DxfFile.DM_MOUSE_BITES
+dxf.width = 0.5
+dxf.write('outputs/b.gml')
+dxf.format = (3,3)
+dxf.write('outputs/b.txt', filetype=DxfFile.FT_EXCELLON)
+top = gerber.load_layer('outputs/a.gtl')
+drill = gerber.load_layer('outputs/b.txt')
+ctx = GerberCairoContext(scale=50)
+ctx.render_layer(top)
+ctx.render_layer(drill)
+ctx.dump('outputs/b.png')
+
 file = gerberex.read('data/test.GTL')
 file.rotate(45)
 file.write('outputs/test_changed.GTL')
