@@ -259,7 +259,7 @@ class DxfPolylineStatement(DxfStatement):
         if self.is_closed:
             self.end = self.start
         else:
-            self.start = (self.entity.points[-1][0], self.entity.points[-1][1])
+            self.end = (self.entity.points[-1][0], self.entity.points[-1][1])
 
     def to_gerber(self, settings=FileSettings(), pitch=0, width=0):
         if pitch:
@@ -364,16 +364,14 @@ class DxfStatements(object):
         def gerbers():
             yield 'D{0}*'.format(self.dcode)
             if self.draw_mode == DxfFile.DM_FILL:
+                yield 'G36*'
                 for statement in self.statements:
-                    yield 'G36*'
                     if isinstance(statement, DxfCircleStatement) or \
                         (isinstance(statement, DxfPolylineStatement) and statement.entity.is_closed):
                         yield statement.to_gerber(settings)
-                    yield 'G37*'
                 for path in self.paths:
-                    yield 'G36*'
                     yield path.to_gerber(settings)
-                    yield 'G37*'
+                yield 'G37*'
             else:
                 for statement in self.statements:
                     yield statement.to_gerber(

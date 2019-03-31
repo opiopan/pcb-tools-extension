@@ -184,7 +184,7 @@ def generate_closed_paths(statements, error_range=0):
         working = []
         for i in range(len(paths)):
             mergee = paths[i]
-            for j in range(i + 1, len(paths) - 1):
+            for j in range(i + 1, len(paths)):
                 target = paths[j]
                 if target.merge(mergee, error_range):
                     break
@@ -192,6 +192,5 @@ def generate_closed_paths(statements, error_range=0):
                 working.append(mergee)
         prev_paths_num = len(paths)
         paths = working
-    
     return list(filter(lambda p: p.is_closed, paths))
     

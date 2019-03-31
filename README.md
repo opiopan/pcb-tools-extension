@@ -6,7 +6,7 @@ This library is designed based on [pcb-tools](https://github.com/curtacircuitos/
 pcb-tools-extension adds following function  to pcb-tools.
 
 - Rotate PCB data
-- Write back loded PCB data (original PCB tools does not work completely)
+- Write back loaded PCB data (original pcb-tools does not work in some condition)
 - Merge multiple PCB data
 - Translate DXF file to gerber data
 
@@ -39,7 +39,7 @@ ctx.merge(metal2)
 ctx.dump('panelized-board.gtl')
 ```
 
-```rotate()``` method can be used to rotate PCB data counterclockwise. you have to specify angle in degree<br>
+```rotate()``` method can be used to rotate PCB data counterclockwise. you have to specify angle in degree.<br>
 ```offset()``` method can be used to move PCB data. Specified offset values are interpreted according to unit setting of PCB data. In case of the above code, ```board2.gtl``` move to 30mm left since ```to_metric()``` is called.
 
 In case of Excellon drill data, you have to use ```DrillCompositon``` instead of ```GerberComposition```.
@@ -88,7 +88,11 @@ dxf.write('outline.gml')
 ```
 
 You can also translate DXF closed shape such as circle to RX-274x polygon fill sequence.<br>
-In order to fill closed shape, ```DM_FILL``` has to be set to ```drawing_mode``` property. In this mode, All object except circle and closed polyline will be ignored.<br>
+In order to fill closed shape, ```DM_FILL``` has to be set to ```drawing_mode``` property. In this mode, All object except closed shapes listed below are ignored.
+
+- circle
+- closed polyline 
+- closed path which consist of lines and arcs
 
 ```python
 import gerberex
