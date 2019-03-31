@@ -103,7 +103,7 @@ dxf.write('outline.gml')
 <img alt="mouse bites" src="https://raw.githubusercontent.com/wiki/opiopan/pcb-tools-extension/images/mousebites.png" width=200 align="right">
 
 
-If ```DM_MOUSE_BITES``` is specified for ```drawing_mode```, filled circles will arranged along a DXF line object at equal intervals. <br>
+If ```DM_MOUSE_BITES``` is specified for ```drawing_mode```, filled circles are arranged along a DXF line object at equal intervals. <br>
 DXF file object in this state can be merged to excellon file also. That means you can arrange mouse bites easily.
 
 ```python
