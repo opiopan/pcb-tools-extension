@@ -3,7 +3,7 @@
 
 # Copyright 2019 Hiroshi Murayama <opiopan@gmail.com>
 
-import io
+import io, sys
 from math import pi, cos, sin, tan, atan, atan2, acos, asin, sqrt
 import dxfgrabber
 from gerber.cam import CamFile, FileSettings
@@ -561,6 +561,8 @@ class DxfFile(CamFile):
         raise Exception('Not supported')
 
 def loads(data, filename=None):
+    if sys.version_info.major == 2:
+        data = unicode(data)
     stream = io.StringIO(data)
     dxf = dxfgrabber.read(stream)
     return DxfFile(dxf)
