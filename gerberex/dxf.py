@@ -11,16 +11,10 @@ from gerber.utils import inch, metric, write_gerber_value
 from gerber.gerber_statements import ADParamStmt
 from gerber.excellon_statements import ExcellonTool
 from gerber.excellon_statements import CoordinateStmt
+from gerberex.utility import is_equal_point, is_equal_value
 from gerberex.dxf_path import generate_closed_paths
 
 ACCEPTABLE_ERROR = 0.001
-
-def is_equal_value(a, b, error_range=0):
-    return a - b <= error_range and a - b >= -error_range
-
-def is_equal_point(a, b, error_range=0):
-    return is_equal_value(a[0], b[0], error_range) and \
-           is_equal_value(a[1], b[1], error_range)
 
 class DxfStatement(object):
     def __init__(self, entity):

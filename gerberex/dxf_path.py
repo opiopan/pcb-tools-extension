@@ -5,6 +5,7 @@
 
 from gerber.utils import inch, metric, write_gerber_value
 from gerber.cam import FileSettings
+from gerberex.utility import is_equal_point, is_equal_value
 
 class DxfPath(object):
     def __init__(self, statement, error_range=0):
@@ -21,12 +22,10 @@ class DxfPath(object):
 
     @property
     def is_closed(self):
-        from gerberex.dxf import is_equal_point
         return len(self.statements) > 1 and \
                is_equal_point(self.start, self.end, self.error_range)
     
     def is_equal_to(self, target, error_range=0):
-        from gerberex.dxf import is_equal_point
         if not isinstance(target, DxfPath):
             return False
         if len(self.statements) != len(target.statements):
@@ -59,7 +58,6 @@ class DxfPath(object):
         self.statements = rlist
     
     def merge(self, element, error_range=0):
-        from gerberex.dxf import is_equal_point
         if self.is_closed or element.is_closed:
             return False
         if not error_range:

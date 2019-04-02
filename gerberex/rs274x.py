@@ -30,11 +30,25 @@ class GerberFile(gerber.rs274x.GerberFile):
         if angle % 360 == 0:
             return
         self._generalize_aperture()
+        last_x = 0
+        last_y = 0
+        last_rx = 0
+        last_ry = 0
         for statement in self.statements:
             if isinstance(statement, AMParamStmtEx):
                 statement.rotate(angle, center)
             elif isinstance(statement, CoordStmt) and statement.x != None and statement.y != None:
-                statement.x, statement.y = rotate(statement.x, statement.y, angle, center)
+                if statement.i != None and statement.j != None:
+                    cx = last_x + statement.i
+                    cy = last_y + statement.j
+                    cx, cy = rotate(cx, cy, angle, center)
+                    statement.i = cx - last_rx
+                    statement.j = cy - last_ry
+                last_x = statement.x
+                last_y = statement.y
+                last_rx, last_ry = rotate(statement.x, statement.y, angle, center)
+                statement.x = last_rx
+                statement.y = last_ry
     
     def _generalize_aperture(self):
         RECTANGLE = 0

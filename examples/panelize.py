@@ -37,16 +37,17 @@ for ext in exts:
         ctx = DrillComposition()
     else:
         ctx = GerberComposition()
-    for path, x_offset, y_offset, theta in boards:
+    for path, x_offset, y_offset, angle in boards:
         file = gerberex.read(path + ext)
         file.to_metric()
-        file.rotate(theta)
+        file.rotate(angle)
         file.offset(x_offset, y_offset)
         ctx.merge(file)
         putstr('.')
     if ext == 'TXT':
         file = gerberex.read(mousebites)
         file.draw_mode = DxfFile.DM_MOUSE_BITES
+        file.to_metric()
         file.width = 0.5
         file.format = (3, 3)
         ctx.merge(file)
