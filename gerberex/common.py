@@ -33,3 +33,8 @@ def loads(data, filename=None, format=None):
         return ipc356.loads(data, filename=filename)
     else:
         raise ParseError('Unable to detect file format')
+
+
+def rectangle(width, height, left=0, bottom=0, units='metric', draw_mode=None, filename=None):
+    return gerberex.dxf.DxfFile.rectangle(
+        width, height, left, bottom, units, draw_mode, filename)

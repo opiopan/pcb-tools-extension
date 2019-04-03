@@ -10,6 +10,6 @@ gerber-tools-extension is a extention package for gerber-tools.
 This package provide panelizing of PCB fucntion.
 """
 
-from gerberex.common import (read, loads)
-from gerberex.composition import (GerberComposition, DrillComposition)
+from gerberex.common import read, loads, rectangle
+from gerberex.composition import GerberComposition, DrillComposition
 from gerberex.dxf import DxfFile

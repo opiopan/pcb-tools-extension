@@ -42,10 +42,16 @@ class DxfStatement(object):
         raise Exception('Not implemented')
 
 class DxfLineStatement(DxfStatement):
-    def __init__(self, entity):
+    @classmethod
+    def from_entity(cls, entity):
+        start = (entity.start[0], entity.start[1])
+        end = (entity.end[0], entity.end[1])
+        return cls(entity, start, end)
+
+    def __init__(self, entity, start, end):
         super(DxfLineStatement, self).__init__(entity)
-        self.start = (self.entity.start[0], self.entity.start[1])
-        self.end = (self.entity.end[0], self.entity.end[1])
+        self.start = start
+        self.end = end
     
     def to_gerber(self, settings=FileSettings(), pitch=0, width=0):
         if pitch == 0:
@@ -329,7 +335,7 @@ class DxfPolylineStatement(DxfStatement):
             self.entity.bulge[idx] = metric(self.entity.bulge[idx])
 
 class DxfStatements(object):
-    def __init__(self, entities, units, dcode=10, draw_mode=None):
+    def __init__(self, statements, units, dcode=10, draw_mode=None):
         if draw_mode == None:
             draw_mode = DxfFile.DM_LINE
         self._units = units
@@ -338,16 +344,7 @@ class DxfStatements(object):
         self.pitch = inch(1) if self._units == 'inch' else 1
         self.width = 0
         self.error_range = inch(ACCEPTABLE_ERROR) if self._units == 'inch' else ACCEPTABLE_ERROR
-        self.statements = []
-        for entity in entities:
-            if entity.dxftype == 'LWPOLYLINE':
-                self.statements.append(DxfPolylineStatement(entity))
-            elif entity.dxftype == 'LINE':
-                self.statements.append(DxfLineStatement(entity))
-            elif entity.dxftype == 'CIRCLE':
-                self.statements.append(DxfCircleStatement(entity))
-            elif entity.dxftype == 'ARC':
-                self.statements.append(DxfArcStatement(entity))
+        self.statements = statements
         self.paths = generate_closed_paths(self.statements, self.error_range)
 
     @property
@@ -458,18 +455,52 @@ class DxfFile(CamFile):
     FT_RX274X = 0
     FT_EXCELLON = 1
 
-    def __init__(self, dxf, settings=None, draw_mode=None, filename=None):
-        if not settings:
-            settings = FileSettings(zero_suppression='leading')
+    @classmethod
+    def from_dxf(cls, dxf, settings=None, draw_mode=None, filename=None):
+        fsettings = settings if settings else \
+            FileSettings(zero_suppression='leading')
 
+        if dxf.header['$INSUNITS'] == 1:
+            fsettings.units = 'inch'
+            if not settings:
+                fsettings.format = (2, 5)
+        else:
+            fsettings.units = 'metric'
+            if not settings:
+                fsettings.format = (3, 4)
+
+        statements = []
+        for entity in dxf.entities:
+            if entity.dxftype == 'LWPOLYLINE':
+                statements.append(DxfPolylineStatement(entity))
+            elif entity.dxftype == 'LINE':
+                statements.append(DxfLineStatement.from_entity(entity))
+            elif entity.dxftype == 'CIRCLE':
+                statements.append(DxfCircleStatement(entity))
+            elif entity.dxftype == 'ARC':
+                statements.append(DxfArcStatement(entity))
+        
+        return cls(statements, fsettings, draw_mode, filename)
+    
+    @classmethod
+    def rectangle(cls, width, height, left=0, bottom=0, units='metric', draw_mode=None, filename=None):
+        if units == 'metric':
+            settings = FileSettings(units=units, zero_suppression='leading', format=(3,4))
+        else:
+            settings = FileSettings(units=units, zero_suppression='leading', format=(2,5))
+        statements = [
+            DxfLineStatement(None, (left, bottom), (left + width, bottom)),
+            DxfLineStatement(None, (left + width, bottom), (left + width, bottom + height)),
+            DxfLineStatement(None, (left + width, bottom + height), (left, bottom + height)),
+            DxfLineStatement(None, (left, bottom + height), (left, bottom)),
+        ]
+        return cls(statements, settings, draw_mode, filename)
+
+    def __init__(self, statements, settings=None, draw_mode=None, filename=None):
+        if not settings:
+            settings = FileSettings(units='metric', format=(3,4), zero_suppression='leading')
         if draw_mode == None:
             draw_mode = self.DM_LINE
-        if dxf.header['$INSUNITS'] == 1:
-            settings.units = 'inch'
-            settings.format = (2, 5)
-        else:
-            settings.units = 'metric'
-            settings.format = (3, 4)
 
         super(DxfFile, self).__init__(settings=settings, filename=filename)
         self._draw_mode = draw_mode
@@ -477,7 +508,8 @@ class DxfFile(CamFile):
         
         self.header2 = DxfHeader2Statement()
         self.aperture = ADParamStmt.circle(dcode=10, diameter=0.0)
-        self.statements = DxfStatements(dxf.entities, self.units, dcode=self.aperture.d, draw_mode=self.draw_mode)
+        self.statements = DxfStatements(
+            statements, self.units, dcode=self.aperture.d, draw_mode=self.draw_mode)
 
     @property
     def dcode(self):
@@ -559,4 +591,4 @@ def loads(data, filename=None):
         data = unicode(data)
     stream = io.StringIO(data)
     dxf = dxfgrabber.read(stream)
-    return DxfFile(dxf)
+    return DxfFile.from_dxf(dxf)
