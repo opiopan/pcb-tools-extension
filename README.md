@@ -102,6 +102,15 @@ dxf.draw_mode = gerberex.DxfFile.DM_FILL
 dxf.write('outline.gml')
 ```
 
+If you want to arrange simple rectangle for PCB outline, ```gerberex.rectangle()``` is better solution. This generate a object representing a rectangle compatible with DXF file object.<br>
+
+```python
+import gerberex
+
+outline = gerberex.rectangle(width=100, height=100, units='metric')
+outline.write('outline.gml')
+```
+
 ### Mouse bites
 
 <img alt="mouse bites" src="https://raw.githubusercontent.com/wiki/opiopan/pcb-tools-extension/images/mousebites.png" width=200 align="right">

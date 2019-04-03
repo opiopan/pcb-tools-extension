@@ -7,7 +7,7 @@ import io, sys
 from math import pi, cos, sin, tan, atan, atan2, acos, asin, sqrt
 import dxfgrabber
 from gerber.cam import CamFile, FileSettings
-from gerber.utils import inch, metric, write_gerber_value
+from gerber.utils import inch, metric, write_gerber_value, rotate_point
 from gerber.gerber_statements import ADParamStmt
 from gerber.excellon_statements import ExcellonTool
 from gerber.excellon_statements import CoordinateStmt
@@ -40,6 +40,13 @@ class DxfStatement(object):
 
     def reverse(self):
         raise Exception('Not implemented')
+
+    def offset(self, offset_x, offset_y):
+        raise Exception('Not supported')
+    
+    def rotate(self, angle, center=(0, 0)):
+        raise Exception('Not supported')
+
 
 class DxfLineStatement(DxfStatement):
     @classmethod
@@ -93,9 +100,9 @@ class DxfLineStatement(DxfStatement):
 
     def to_metric(self):
         self.start = (
-            metric(self.start[0]), inch(self.start[1]))
+            metric(self.start[0]), metric(self.start[1]))
         self.end = (
-            metric(self.end[0]), inch(self.end[1]))
+            metric(self.end[0]), metric(self.end[1]))
 
     def is_equal_to(self, target, error_range=0):
         if not isinstance(target, DxfLineStatement):
@@ -126,6 +133,14 @@ class DxfLineStatement(DxfStatement):
             x0 += xd
             y0 += yd
             d += pitch
+
+    def offset(self, offset_x, offset_y):
+        self.start = (self.start[0] + offset_x, self.start[1] + offset_y)
+        self.end = (self.end[0] + offset_x, self.end[1] + offset_y)
+
+    def rotate(self, angle, center=(0, 0)):
+        self.start = rotate_point(self.start, angle, center)
+        self.end = rotate_point(self.end, angle, center)
 
 class DxfCircleStatement(DxfStatement):
     def __init__(self, entity):
@@ -176,6 +191,12 @@ class DxfCircleStatement(DxfStatement):
 
     def reverse(self):
         pass
+
+    def offset(self, offset_x, offset_y):
+        self.center = (self.center[0] + offset_x, self.center[1] + offset_y)
+
+    def rotate(self, angle, center=(0, 0)):
+        self.center = rotate_point(self.center, angle, center)
 
 class DxfArcStatement(DxfStatement):
     def __init__(self, entity):
@@ -251,6 +272,18 @@ class DxfArcStatement(DxfStatement):
         self.start = self.end
         self.end = tmp
 
+    def offset(self, offset_x, offset_y):
+        self.center = (self.center[0] + offset_x, self.center[1] + offset_y)
+        self.start = (self.start[0] + offset_x, self.start[1] + offset_y)
+        self.end = (self.end[0] + offset_x, self.end[1] + offset_y)
+
+    def rotate(self, angle, center=(0, 0)):
+        self.start_angle += angle
+        self.end_angle += angle
+        self.center = rotate_point(self.center, angle, center)
+        self.start = rotate_point(self.start, angle, center)
+        self.end = rotate_point(self.end, angle, center)
+
 class DxfPolylineStatement(DxfStatement):
     def __init__(self, entity):
         super(DxfPolylineStatement, self).__init__(entity)
@@ -324,7 +357,6 @@ class DxfPolylineStatement(DxfStatement):
         for idx in range(0, len(self.entity.points)):
             self.entity.points[idx] = (
                 inch(self.entity.points[idx][0]), inch(self.entity.points[idx][1]))
-            self.entity.bulge[idx] = inch(self.entity.bulge[idx])
 
     def to_metric(self):
         self.start = (metric(self.start[0]), metric(self.start[1]))
@@ -332,7 +364,16 @@ class DxfPolylineStatement(DxfStatement):
         for idx in range(0, len(self.entity.points)):
             self.entity.points[idx] = (
                 metric(self.entity.points[idx][0]), metric(self.entity.points[idx][1]))
-            self.entity.bulge[idx] = metric(self.entity.bulge[idx])
+    
+    def offset(self, offset_x, offset_y):
+        for idx in range(len(self.entity.points)):
+            self.entity.points[idx] = (
+                self.entity.points[idx][0] + offset_x, self.entity.points[idx][1] + offset_y)
+
+    def rotate(self, angle, center=(0, 0)):
+        for idx in range(len(self.entity.points)):
+            self.entity.points[idx] = rotate_point(self.entity.points[idx], angle, center)
+
 
 class DxfStatements(object):
     def __init__(self, statements, units, dcode=10, draw_mode=None):
@@ -400,6 +441,14 @@ class DxfStatements(object):
                 statement.to_metric()
             for path in self.paths:
                 path.to_metric()
+    
+    def offset(self, offset_x, offset_y):
+        for statement in self.statements:
+            statement.offset(offset_x, offset_y)
+
+    def rotate(self, angle, center=(0, 0)):
+        for statement in self.statements:
+            statement.rotate(angle, center)
 
 class DxfHeaderStatement(object):
     def to_gerber(self, settings):
@@ -583,8 +632,11 @@ class DxfFile(CamFile):
             self.pitch = metric(self.pitch)
             self.units = 'metric'
 
-    def offset(self, ofset_x, offset_y):
-        raise Exception('Not supported')
+    def offset(self, offset_x, offset_y):
+        self.statements.offset(offset_x, offset_y)
+    
+    def rotate(self, angle, center=(0, 0)):
+        self.statements.rotate(angle, center)
 
 def loads(data, filename=None):
     if sys.version_info.major == 2:
