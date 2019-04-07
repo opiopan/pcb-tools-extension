@@ -19,15 +19,15 @@ METADATA = {
     'url': "http://github.com/opiopan/pcb-tools-extension",
     'packages': ['gerberex'],
     'long_description': read('README.md'),
-    'classifiers':[
+    'long_description_content_type': 'text/markdown', 
+    'classifiers': [
         "Development Status :: 3 - Alpha",
         "Topic :: Utilities",
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language:: Python:: 2",
         'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
     ],
 }
 

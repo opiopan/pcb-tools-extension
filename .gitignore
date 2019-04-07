@@ -5,3 +5,5 @@ __pycache__
 pcb_tools_extension.egg-info
 test
 outputs
+build
+dist
