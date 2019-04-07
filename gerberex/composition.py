@@ -202,8 +202,8 @@ class DrillComposition(Composition):
                 file.to_inch()
 
         if not self.header1_statements:
-            self.header1_statements = file.header
-            self.header2_statements = file.header2
+            self.header1_statements = [file.header]
+            self.header2_statements = [file.header2]
         
         tool = self._register_tool(ExcellonTool(self.settings, number=1, diameter=file.width))
         self.dxf_statements.append((tool.number, file.statements))

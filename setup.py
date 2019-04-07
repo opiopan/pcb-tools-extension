@@ -1,11 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright 2013-2014 Paulo Henrique Silva <ph.silva@gmail.com>
-
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Copyright 2019 Hiroshi Murayama <opiopan@gmail.com>
 
 import os
 
@@ -14,7 +10,7 @@ def read(fname):
 
 METADATA = {
     'name': 'pcb-tools-extension',
-    'version': "0.1.2",
+    'version': "0.1.4",
     'author': 'Hiroshi Murayama <opiopan@gmail.com>',
     'author_email': "opiopan@gmail.com",
     'description': ("Extension for pcb-tools package to panelize gerber files"),

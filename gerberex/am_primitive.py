@@ -117,14 +117,14 @@ class AMVectorLinePrimitiveDef(AMPrimitiveDef):
         self.start_x = self.start_x.to_inch().optimize()
         self.start_y = self.start_y.to_inch().optimize()
         self.end_x = self.end_x.to_inch().optimize()
-        self.end_y = self.end_x.to_inch().optimize()
+        self.end_y = self.end_y.to_inch().optimize()
     
     def to_metric(self):
         self.width = self.width.to_metric().optimize()
         self.start_x = self.start_x.to_metric().optimize()
         self.start_y = self.start_y.to_metric().optimize()
         self.end_x = self.end_x.to_metric().optimize()
-        self.end_y = self.end_x.to_metric().optimize()
+        self.end_y = self.end_y.to_metric().optimize()
 
     def to_gerber(self, settings=None):
         data = dict(code = self.code,
@@ -197,11 +197,11 @@ class AMCenterLinePrimitiveDef(AMPrimitiveDef):
 class AMOutlinePrimitiveDef(AMPrimitiveDef):
     @classmethod
     def from_modifiers(cls, code, modifiers):
-        num_points = modifiers[1] + 1
+        num_points = int(modifiers[1].value + 1)
         code = code
         exposure = 'on' if modifiers[0].value == 1 else 'off'
-        addrs = modifiers[2:num_points * 2]
-        rotation = modifiers[3 + num_points * 2]
+        addrs = modifiers[2:num_points * 2 + 2]
+        rotation = modifiers[2 + num_points * 2]
         return cls(code, exposure, addrs, rotation)
 
     def __init__(self, code, exposure, addrs, rotation):
@@ -209,10 +209,10 @@ class AMOutlinePrimitiveDef(AMPrimitiveDef):
         self.addrs = addrs
 
     def to_inch(self):
-        self.addrs = [i.to_inch() for i in self.addrs]
+        self.addrs = [i.to_inch().optimize() for i in self.addrs]
     
     def to_metric(self):
-        self.addrs = [i.to_metric() for i in self.addrs]
+        self.addrs = [i.to_metric().optimize() for i in self.addrs]
  
     def to_gerber(self, settings=None):
         def strs():
@@ -262,7 +262,7 @@ class AMPolygonPrimitiveDef(AMPrimitiveDef):
     def to_metric(self):
         self.x = self.x.to_metric().optimize()
         self.y = self.y.to_metric().optimize()
-        self.diameter = self.diameter.to_inch().optimize()
+        self.diameter = self.diameter.to_metric().optimize()
 
     def to_gerber(self, settings=None):
         data = dict(code = self.code,

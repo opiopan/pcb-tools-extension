@@ -98,7 +98,7 @@ In order to fill closed shape, ```DM_FILL``` has to be set to ```draw_mode``` pr
 import gerberex
 
 dxf = gerberex.read('outline.dxf')
-dxf.draw_mode = gerberex.DxfFile.DM_FILL
+dxf.draw_mode = dxf.DM_FILL
 dxf.write('outline.gml')
 ```
 
@@ -127,7 +127,7 @@ drill = gerberex.read('drill.txt')
 ctx.merge(drill)
 
 dxf = gerberex.read('mousebites.dxf')
-dxf.draw_mode = gerberex.DxfFile.DM_MOUSE_BITES
+dxf.draw_mode = dxf.DM_MOUSE_BITES
 dxf.to_metric()
 dxf.width = 0.5
 dxf.pitch = 1

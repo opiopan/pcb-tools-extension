@@ -49,7 +49,7 @@ class AMConstantExpression(AMExpression):
         return self
     
     def to_gerber(self, settings=None):
-        return str(self._value)
+        return '%.6g' % self._value
 
     def to_instructions(self):
         return [(OpCode.PUSH, self._value)]
@@ -179,5 +179,3 @@ def eval_macro(instructions):
         elif opcode == OpCode.PRIM:
             yield (argument, stack)
             stack = []
-
-

@@ -13,8 +13,7 @@ def rotate(x, y, angle, center):
             sin(angle) * x0 + cos(angle) * y0 + center[1])
 
 def is_equal_value(a, b, error_range=0):
-    return a - b <= error_range and a - b >= -error_range
-
+    return (a - b) * (a - b) <= error_range * error_range
 
 def is_equal_point(a, b, error_range=0):
     return is_equal_value(a[0], b[0], error_range) and \

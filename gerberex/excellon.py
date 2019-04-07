@@ -6,6 +6,7 @@
 from gerber.excellon import (ExcellonParser, detect_excellon_format, ExcellonFile)
 from gerber.excellon_statements import UnitStmt
 from gerber.cam import FileSettings
+from gerber.utils import inch, metric
 from gerberex.utility import rotate
 
 def loads(data, filename=None, settings=None, tools=None, format=None):
@@ -33,6 +34,19 @@ class ExcellonFileEx(ExcellonFile):
             return
         for hit in self.hits:
             hit.position = rotate(hit.position[0], hit.position[1], angle, center)
+    
+    def to_inch(self):
+        if self.units == 'metric':
+            super(ExcellonFileEx, self).to_inch()
+            for hit in self.hits:
+                hit.position = (inch(hit.position[0]), inch(hit.position[1]))
+
+    def to_metric(self):
+        if self.units == 'inch':
+            super(ExcellonFileEx, self).to_metric()
+            for hit in self.hits:
+                hit.position = (metric(hit.position[0]), metric(hit.position[1]))
+
 
 class UnitStmtEx(UnitStmt):
     @classmethod
@@ -43,7 +57,8 @@ class UnitStmtEx(UnitStmt):
         super(UnitStmtEx, self).__init__(units, zeros, format, **kwargs)
     
     def to_excellon(self, settings=None):
+        format = settings.format if settings else self.format
         stmt = '%s,%s,%s.%s' % ('INCH' if self.units == 'inch' else 'METRIC',
                           'LZ' if self.zeros == 'leading' else 'TZ',
-                          '0' * self.format[0], '0' * self.format[1])
+                          '0' * format[0], '0' * format[1])
         return stmt
