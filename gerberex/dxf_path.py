@@ -173,9 +173,20 @@ class DxfPath(object):
 def generate_closed_paths(statements, error_range=0):
     from gerberex.dxf import DxfLineStatement, DxfArcStatement
 
-    paths = [DxfPath(s, error_range) \
-             for s in filter(lambda s: isinstance(s, DxfLineStatement) or \
-                                       isinstance(s, DxfArcStatement), statements)]
+    unique_statements = []
+    redundant = 0
+    for statement in statements:
+        for target in unique_statements:
+            if not isinstance(statement, DxfLineStatement) and \
+               not isinstance(statement, DxfArcStatement):
+                break
+            if statement.is_equal_to(target, error_range):
+                redundant += 1
+                break
+        else:
+            unique_statements.append(statement)
+
+    paths = [DxfPath(s, error_range) for s in unique_statements]
 
     prev_paths_num = 0
     while prev_paths_num != len(paths):
