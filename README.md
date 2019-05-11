@@ -12,7 +12,7 @@ pcb-tools-extension adds following function  to pcb-tools.
 
 Only RS-274x format and Excellon drill format data can be handled by current version of this library.
 
-## Install
+## Installation
 ```shell
 $ pip install pcb-tools-extension
 ```
