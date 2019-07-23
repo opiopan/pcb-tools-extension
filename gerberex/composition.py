@@ -7,6 +7,7 @@ from functools import reduce
 from gerber.cam import FileSettings
 from gerber.gerber_statements import EofStmt
 from gerber.excellon_statements import *
+from gerber.excellon import DrillSlot, DrillHit
 import gerberex.rs274x
 import gerberex.excellon
 import gerberex.dxf
@@ -149,7 +150,10 @@ class DrillComposition(Composition):
                 yield ToolSelectionStmt(t.number).to_excellon(self.settings)
                 for h in self.hits:
                     if h.tool.number == t.number:
-                        yield CoordinateStmt(*h.position).to_excellon(self.settings)
+                        if type(h) == DrillSlot:
+                            yield SlotStmt(*h.start, *h.end).to_excellon(self.settings)
+                        elif type(h) == DrillHit:
+                            yield CoordinateStmt(*h.position).to_excellon(self.settings)
                 for num, statement in self.dxf_statements:
                     if num == t.number:
                         yield statement.to_excellon(self.settings)
