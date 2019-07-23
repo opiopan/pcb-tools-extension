@@ -56,7 +56,7 @@ class AMCirclePrimitiveDef(AMPrimitiveDef):
         diameter = modifiers[1]
         center_x = modifiers[2]
         center_y = modifiers[3]
-        rotation = modifiers[4]
+        rotation = modifiers[4] if len(modifiers)>4 else AMConstantExpression(float(0))
         return cls(code, exposure, diameter, center_x, center_y, rotation)
 
     def __init__(self, code, exposure, diameter, center_x, center_y, rotation):
