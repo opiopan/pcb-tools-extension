@@ -13,8 +13,16 @@ pcb-tools-extension adds following function  to pcb-tools.
 Only RS-274x format and Excellon drill format data can be handled by current version of this library.
 
 ## Installation
+You can install a stable version by following step.
+
 ```shell
 $ pip install pcb-tools-extension
+```
+
+If you have a intention to try latest developing version, please install as follows.
+
+```shell
+$ pip install git+https://github.com/opiopan/pcb-tools-extension.git
 ```
 
 ## How to panelize
