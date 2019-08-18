@@ -27,8 +27,8 @@ class TestAMConstantExpression(unittest.TestCase):
         self.assertEqual(ov.value, self.const_float_value)
     
     def test_to_gerber(self):
-        self.assertEqual(self.const_int.to_gerber(), '7.000000')
-        self.assertEqual(self.const_float.to_gerber(), '1.234500')
+        self.assertEqual(self.const_int.to_gerber(), '7')
+        self.assertEqual(self.const_float.to_gerber(), '1.2345')
 
     def test_to_instructions(self):
         self.const_int.to_instructions()
@@ -120,15 +120,15 @@ class TestAMOperatorExpression(unittest.TestCase):
     def test_to_gerber(self):
         for op, expression in self.cc_exps:
             self.assertEqual(expression.to_gerber(),
-                             '(%.6f)%s(%.6f)' % (self.c1, op, self.c2))
+                             '({0}){1}({2})'.format(self.c1, op, self.c2))
         for op, expression in self.cv_exps:
             self.assertEqual(expression.to_gerber(),
-                             '(%.6f)%s($%d)' % (self.c1, op, self.v2))
+                             '({0}){1}(${2})'.format(self.c1, op, self.v2))
         for op, expression in self.vc_exps:
             self.assertEqual(expression.to_gerber(),
-                             '($%d)%s(%.6f)' % (self.v1, op, self.c2))
+                             '(${0}){1}({2})'.format(self.v1, op, self.c2))
         self.assertEqual(self.composition.to_gerber(), 
-                         '((%.6f)+(%.6f))+((%.6f)+(%.6f))' % (
+                         '(({0})+({1}))+(({2})+({3}))'.format(
                              self.c1, self.c2, self.c1, self.c2
                          ))
     
@@ -168,29 +168,29 @@ class TestAMExpression(unittest.TestCase):
 class TestEvalMacro(unittest.TestCase):
     def test_eval_macro(self):
         macros = [
-            ('$1=5.5*', '$1=5.500000*'),
-            ('$1=0.0000001*', '$1=0.000000*'),
-            ('$2=$3*', '$2=$3*'),
-            ('$3=(1.23)+(4.56)*', '$3=(1.230000)+(4.560000)*'),
-            ('$3=(1.23)-(4.56)*', '$3=(1.230000)-(4.560000)*'),
-            ('$3=(1.23)X(4.56)*', '$3=(1.230000)X(4.560000)*'),
-            ('$3=(1.23)/(4.56)*', '$3=(1.230000)/(4.560000)*'),
-            ('$3=(10.2)X($2)*', '$3=(10.200000)X($2)*'),
-            ('1,1.2*', '1,1.200000*'),
-            ('1,$2*', '1,$2*'),
-            ('1,($2)+($3)*', '1,($2)+($3)*'),
-            #('1,(2.0)-($3)*', '1,(2.0)-($3)*'),  # This doesn't pass due to pcb-tools bug
-            ('1,($2)X($3)*', '1,($2)X($3)*'),
-            ('1,($2)/($3)*', '1,($2)/($3)*'),
-            ('1,2.1,3.2*2,(3.1)/($1),$2*', '1,2.100000,3.200000*2,(3.100000)/($1),$2*'),
+            '$1=5.5*',
+            '$1=0.000001*'
+            '$2=$3*',
+            '$3=(1.23)+(4.56)*',
+            '$3=(1.23)-(4.56)*',
+            '$3=(1.23)X(4.56)*',
+            '$3=(1.23)/(4.56)*',
+            '$3=(10.2)X($2)*',
+            '1,1.2*',
+            '1,$2*',
+            '1,($2)+($3)*',
+            #'1,(2.0)-($3)*',  # This doesn't pass due to pcb-tools bug
+            '1,($2)X($3)*',
+            '1,($2)/($3)*',
+            '1,2.1,3.2*2,(3.1)/($1),$2*'
         ]
-        for macro, expected in macros:
-            self._eval_macro_string(macro, expected)
+        for macro in macros:
+            self._eval_macro_string(macro)
 
-    def _eval_macro_string(self, macro, expected):
+    def _eval_macro_string(self, macro):
         expressions = eval_macro(read_macro(macro))
         gerber = self._to_gerber(expressions)
-        self.assertEqual(gerber, expected)
+        self.assertEqual(macro, gerber)
 
     def _to_gerber(self, expressions_list):
         gerber = ''

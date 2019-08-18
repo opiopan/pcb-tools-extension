@@ -49,7 +49,8 @@ class AMConstantExpression(AMExpression):
         return self
     
     def to_gerber(self, settings=None):
-        return '%.6f' % self._value
+        gerber = '%.6g' % self._value
+        return '%.6f' % self._value if 'e' in gerber else gerber
 
     def to_instructions(self):
         return [(OpCode.PUSH, self._value)]
