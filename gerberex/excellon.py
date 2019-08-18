@@ -124,13 +124,19 @@ class ExcellonFileEx(ExcellonFile):
     
     def to_inch(self):
         if self.units == 'metric':
-            super(ExcellonFileEx, self).to_inch()
+            for stmt in self.statements:
+                stmt.to_inch()
+            for tool in self.tools:
+                self.tools[tool].to_inch()
             for hit in self.hits:
                 hit.to_inch()
 
     def to_metric(self):
         if self.units == 'inch':
-            super(ExcellonFileEx, self).to_metric()
+            for stmt in self.statements:
+                stmt.to_metric()
+            for tool in self.tools:
+                self.tools[tool].to_metric()
             for hit in self.hits:
                 hit.to_metric()
     
@@ -153,13 +159,27 @@ class ExcellonFileEx(ExcellonFile):
             f.write(EndOfProgramStmt().to_excellon() + '\n')
 
 class DrillHitEx(DrillHit):
-    def rotate(self, angle, center=(0,0)):
+    def to_inch(self):
+        self.position = tuple(map(inch, self.position))
+
+    def to_metric(self):
+        self.position = tuple(map(metric, self.position))
+
+    def rotate(self, angle, center=(0, 0)):
         self.position = rotate(*self.position, angle, center)
 
     def to_excellon(self, settings):
         return CoordinateStmtEx(*self.position).to_excellon(settings)
 
 class DrillSlotEx(DrillSlot):
+    def to_inch(self):
+        self.start = tuple(map(inch, self.start))
+        self.end = tuple(map(inch, self.end))
+
+    def to_metric(self):
+        self.start = tuple(map(metric, self.start))
+        self.end = tuple(map(metric, self.end))
+
     def rotate(self, angle, center=(0,0)):
         self.start = rotate(*self.start, angle, center)
         self.end = rotate(*self.end, angle, center)
@@ -190,24 +210,20 @@ class DrillRout(object):
         for node in self.nodes[1:]:
             excellon += CoordinateStmtEx(*node.position, node.radius,
                                         node.mode).to_excellon(settings) + '\n'
-        excellon += 'M16\nG05\n'
+        excellon += 'M16\nG05'
         return excellon
 
     def to_inch(self):
-        if self.tool.settings.units == 'metric':
-            self.tool.to_inch()
-            for node in self.nodes:
-                node.position = tuple(map(inch, node.position))
-                node.radius = inch(
-                    node.radius) if node.radius is not None else None
+        for node in self.nodes:
+            node.position = tuple(map(inch, node.position))
+            node.radius = inch(
+                node.radius) if node.radius is not None else None
 
     def to_metric(self):
-        if self.tool.settings.units == 'inch':
-            self.tool.to_metric()
-            for node in self.nodes:
-                node.position = tuple(map(metric, node.position))
-                node.radius = metric(
-                    node.radius) if node.radius is not None else None
+        for node in self.nodes:
+            node.position = tuple(map(metric, node.position))
+            node.radius = metric(
+                node.radius) if node.radius is not None else None
 
     def offset(self, x_offset=0, y_offset=0):
         for node in self.nodes:
