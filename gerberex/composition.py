@@ -124,8 +124,6 @@ class GerberComposition(Composition):
 class DrillComposition(Composition):
     def __init__(self, settings=None, comments=None):
         super(DrillComposition, self).__init__(settings, comments)
-        self.header1_statements = []
-        self.header2_statements = []
         self.tools = []
         self.hits = []
         self.dxf_statements = []
@@ -140,12 +138,6 @@ class DrillComposition(Composition):
 
     def dump(self, path):
         def statements():
-            for s in self.header1_statements:
-                yield s.to_excellon(self.settings)
-            for t in self.tools:
-                yield t.to_excellon(self.settings)
-            for s in self.header2_statements:
-                yield s.to_excellon(self.settings)
             for t in self.tools:
                 yield ToolSelectionStmt(t.number).to_excellon(self.settings)
                 for h in self.hits:
@@ -157,6 +149,7 @@ class DrillComposition(Composition):
             yield EndOfProgramStmt().to_excellon()
         
         with open(path, 'w') as f:
+            gerberex.excellon.write_excellon_header(f, self.settings, self.tools)
             for statement in statements():
                 f.write(statement + '\n')
 
@@ -171,20 +164,6 @@ class DrillComposition(Composition):
             else:
                 file.to_inch()
 
-        if not self.header1_statements:
-            in_header1 = True
-            for statement in file.statements:
-                if not isinstance(statement, ToolSelectionStmt):
-                    if isinstance(statement, ExcellonTool):
-                        in_header1 = False
-                    else:
-                        if in_header1:
-                            self.header1_statements.append(statement)
-                        else:
-                            self.header2_statements.append(statement)
-                else:
-                    break
-        
         for tool in iter(file.tools.values()):
             num = tool.number
             tool_map[num] = self._register_tool(tool)
@@ -202,10 +181,6 @@ class DrillComposition(Composition):
             else:
                 file.to_inch()
 
-        if not self.header1_statements:
-            self.header1_statements = [file.header]
-            self.header2_statements = [file.header2]
-        
         tool = self._register_tool(ExcellonTool(self.settings, number=1, diameter=file.width))
         self.dxf_statements.append((tool.number, file.statements))
 

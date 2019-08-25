@@ -26,6 +26,13 @@ def loads(data, filename=None, settings=None, tools=None, format=None):
     file = ExcellonParser(settings, tools).parse_raw(data, filename)
     return ExcellonFileEx.from_file(file)
 
+def write_excellon_header(file, settings, tools):
+    file.write('M48\nFMAT,2\nICI,OFF\n%s\n' % 
+               UnitStmtEx(settings.units, settings.zeros, settings.format).to_excellon(settings))
+    for tool in tools:
+        file.write(tool.to_excellon(settings) + '\n')
+    file.write('%%\nG90\n%s\n' % ('M72' if settings.units == 'inch' else 'M71'))
+
 class ExcellonFileEx(ExcellonFile):
     @classmethod
     def from_file(cls, file):
@@ -180,6 +187,7 @@ class ExcellonFileEx(ExcellonFile):
                 self.tools[tool].to_inch()
             for hit in self.hits:
                 hit.to_inch()
+            self.units = 'inch'
 
     def to_metric(self):
         if self.units == 'inch':
@@ -189,17 +197,12 @@ class ExcellonFileEx(ExcellonFile):
                 self.tools[tool].to_metric()
             for hit in self.hits:
                 hit.to_metric()
+            self.units = 'metric'
     
     def write(self, filename=None):
         filename = filename if filename is not None else self.filename
         with open(filename, 'w') as f:
-
-            for statement in self.statements:
-                if not isinstance(statement, ToolSelectionStmt):
-                    f.write(statement.to_excellon(self.settings) + '\n')
-                else:
-                    break
-
+            write_excellon_header(f, self.settings, [self.tools[t] for t in self.tools])
             for tool in iter(self.tools.values()):
                 f.write(ToolSelectionStmt(
                     tool.number).to_excellon(self.settings) + '\n')

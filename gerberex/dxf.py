@@ -13,6 +13,7 @@ from gerber.excellon_statements import ExcellonTool
 from gerber.excellon_statements import CoordinateStmt
 from gerberex.utility import is_equal_point, is_equal_value
 from gerberex.dxf_path import generate_closed_paths
+from gerberex.excellon import write_excellon_header
 
 ACCEPTABLE_ERROR = 0.001
 
@@ -465,30 +466,7 @@ class DxfHeaderStatement(object):
         )
     
     def to_excellon(self, settings):
-        return 'M48\n'\
-               'FMAT,2\n'\
-               'ICI,{0}\n'\
-               '{1},{2},{3}.{4}\n'\
-               '{5}'.format(
-            'ON' if settings.notation == 'incremental' else 'OFF',
-            'INCH' if settings.units == 'inch' else 'METRIC',
-            'TZ' if settings.zero_suppression == 'leading' else 'LZ',
-            '0' * settings.format[0], '0' * settings.format[1],
-            'M72' if settings.units == 'inch' else 'M71'
-        )
-
-    def to_inch(self):
         pass
-
-    def to_metric(self):
-        pass
-
-class DxfHeader2Statement(object):
-    def to_gerber(self, settings):
-        pass
-
-    def to_excellon(self, settings):
-        return '%'
 
     def to_inch(self):
         pass
@@ -555,7 +533,6 @@ class DxfFile(CamFile):
         self._draw_mode = draw_mode
         self.header = DxfHeaderStatement()
         
-        self.header2 = DxfHeader2Statement()
         self.aperture = ADParamStmt.circle(dcode=10, diameter=0.0)
         self.statements = DxfStatements(
             statements, self.units, dcode=self.aperture.d, draw_mode=self.draw_mode)
@@ -607,10 +584,8 @@ class DxfFile(CamFile):
                 f.write(self.statements.to_gerber(self.settings) + '\n')
                 f.write('M02*\n')
             else:
-                tool = ExcellonTool(self.settings, number=1, diameter=self.width)
-                f.write(self.header.to_excellon(self.settings) + '\n')
-                f.write(tool.to_excellon(self.settings) + '\n')
-                f.write(self.header2.to_excellon(self.settings) + '\n')
+                tools = [ExcellonTool(self.settings, number=1, diameter=self.width)]
+                write_excellon_header(f, self.settings, tools)
                 f.write('T01\n')
                 f.write(self.statements.to_excellon(self.settings) + '\n')
                 f.write('M30\n')
