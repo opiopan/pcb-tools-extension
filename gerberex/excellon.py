@@ -5,8 +5,10 @@
 
 import operator
 
+import gerber.excellon
 from gerber.excellon import ExcellonParser, detect_excellon_format, ExcellonFile, DrillHit, DrillSlot
-from gerber.excellon_statements import UnitStmt, CoordinateStmt, UnknownStmt, SlotStmt, DrillModeStmt, \
+from gerber.excellon_statements import ExcellonStatement, UnitStmt, CoordinateStmt, UnknownStmt, \
+                                       SlotStmt, DrillModeStmt, RouteModeStmt, LinearModeStmt, \
                                        ToolSelectionStmt, ZAxisRoutPositionStmt, \
                                        RetractWithClampingStmt, RetractWithoutClampingStmt, \
                                        EndOfProgramStmt
@@ -19,6 +21,8 @@ def loads(data, filename=None, settings=None, tools=None, format=None):
         settings = FileSettings(**detect_excellon_format(data))
         if format:
             settings.format = format
+    gerber.excellon.CoordinateStmt = CoordinateStmtEx
+    gerber.excellon.UnitStmt = UnitStmtEx
     file = ExcellonParser(settings, tools).parse_raw(data, filename)
     return ExcellonFileEx.from_file(file)
 
@@ -26,49 +30,78 @@ class ExcellonFileEx(ExcellonFile):
     @classmethod
     def from_file(cls, file):
         def correct_statements():
-            lazy_stmt = None
-            modifier = None
             for stmt in file.statements:
-                modifier = lazy_stmt
-                lazy_stmt = None
-                if isinstance(stmt, UnitStmt):
-                    yield UnitStmtEx.from_statement(stmt)
-                elif isinstance(stmt, CoordinateStmt):
-                    new_stmt = CoordinateStmtEx.from_statement(stmt)
-                    if modifier and new_stmt.mode is None:
-                        new_stmt.mode = modifier
-                    yield new_stmt
-                elif isinstance(stmt, UnknownStmt):
+                if isinstance(stmt, UnknownStmt):
                     line = stmt.stmt.strip()
-                    mode = None
                     if line[:3] == 'G02':
-                        mode = CoordinateStmtEx.MODE_CIRCULER_CW
+                        yield CircularCWModeStmt()
+                        if len(line) > 3:
+                            yield CoordinateStmtEx.from_excellon(line[3:], file.settings)
                     elif line[:3] == 'G03':
-                        mode = CoordinateStmtEx.MODE_CIRCULER_CCW
+                        yield CircularCCWModeStmt()
+                        if len(line) > 3:
+                            yield CoordinateStmtEx.from_excellon(line[3:], file.settings)
+                    elif line[0] == 'X' or line[0] == 'Y' or line[0] == 'A' or line[0] == 'I':
+                        yield CoordinateStmtEx.from_excellon(line, file.settings)
                     else:
                         yield stmt
-                        continue
-                    if len(line) == 3:
-                        lazy_stmt = mode
-                        continue
-                    new_stmt = CoordinateStmtEx.from_excellon(line[3:], file.settings)
-                    new_stmt.mode = mode
-                    yield new_stmt
                 else:
                     yield stmt
 
         def generate_hits(statements):
+            class CoordinateCtx:
+                def __init__(self, notation):
+                    self.notation = notation
+                    self.x = 0.
+                    self.y = 0.
+                    self.radius = None
+                    self.center_offset = None
+                
+                def update(self, x=None, y=None, radius=None, center_offset=None):
+                    if self.notation == 'absolute':
+                        if x is not None:
+                            self.x = x
+                        if y is not None:
+                            self.y = y
+                    else:
+                        if x is not None:
+                            self.x += x
+                        if y is not None:
+                            self.y += y
+                    if radius is not None:
+                        self.radius = radius
+                    if center_offset is not None:
+                        self.center_offset = center_offset
+                
+                def node(self, mode, center_offset):
+                    radius, offset = None, None
+                    if mode == DrillRout.MODE_CIRCULER_CW or mode == DrillRout.MODE_CIRCULER_CCW:
+                        if center_offset is None:
+                            radius = self.radius
+                            offset = self.center_offset
+                        else:
+                            radius = None
+                            offset = center_offset
+                    return DrillRout.Node(mode, self.x, self.y, radius, offset)
+
             STAT_DRILL = 0
             STAT_ROUT_UP = 1
             STAT_ROUT_DOWN = 2
+
             status = STAT_DRILL
             current_tool = None
-            rout_statements = []
+            rout_mode = None
+            coordinate_ctx = CoordinateCtx(file.notation)
+            rout_nodes = []
 
-            def make_rout(status, statements):
-                if status != STAT_ROUT_DOWN or len(statements) == 0 or current_tool is None:
+            last_position = (0., 0.)
+            last_radius = None
+            last_center_offset = None
+
+            def make_rout(status, nodes):
+                if status != STAT_ROUT_DOWN or len(nodes) == 0 or current_tool is None:
                     return None
-                return DrillRout.from_coordinates(current_tool, statements)
+                return DrillRout(current_tool, nodes)
 
             for stmt in statements:
                 if isinstance(stmt, ToolSelectionStmt):
@@ -79,31 +112,48 @@ class ExcellonFileEx(ExcellonFile):
                     if rout is not None:
                         yield rout
                     status = STAT_DRILL
+                    rout_mode = None
+                elif isinstance(stmt, RouteModeStmt):
+                    if status == STAT_DRILL:
+                        status = STAT_ROUT_UP
+                        rout_mode = DrillRout.MODE_ROUT
+                    else:
+                        rout_mode = DrillRout.MODE_LINEAR
+
+                elif isinstance(stmt, LinearModeStmt):
+                    rout_mode = DrillRout.MODE_LINEAR
+                elif isinstance(stmt, CircularCWModeStmt):
+                    rout_mode = DrillRout.MODE_CIRCULER_CW
+                elif isinstance(stmt, CircularCCWModeStmt):
+                    rout_mode = DrillRout.MODE_CIRCULER_CCW
                 elif isinstance(stmt, ZAxisRoutPositionStmt) and status == STAT_ROUT_UP:
                     status = STAT_ROUT_DOWN
                 elif isinstance(stmt, RetractWithClampingStmt) or isinstance(stmt, RetractWithoutClampingStmt):
-                    rout = make_rout(status, rout_statements)
+                    rout = make_rout(status, rout_nodes)
                     rout_statements = []
                     if rout is not None:
                         yield rout
                     status = STAT_ROUT_UP
                 elif isinstance(stmt, SlotStmt):
-                    yield DrillSlotEx(current_tool, (stmt.x_start, stmt.y_start), 
-                                      (stmt.x_end, stmt.y_end), DrillSlotEx.TYPE_G85)
+                    coordinate_ctx.update(stmt.x_start, stmt.y_start)
+                    x_start = coordinate_ctx.x
+                    y_start = coordinate_ctx.y
+                    coordinate_ctx.update(stmt.x_end, stmt.y_end)
+                    x_end = coordinate_ctx.x
+                    y_end = coordinate_ctx.y
+                    yield DrillSlotEx(current_tool, (x_start, y_start), 
+                                      (x_end, y_end), DrillSlotEx.TYPE_G85)
                 elif isinstance(stmt, CoordinateStmtEx):
-                    if stmt.mode is None:
-                        if status != STAT_DRILL:
-                            raise Exception('invalid statement sequence')
-                        yield DrillHitEx(current_tool, (stmt.x, stmt.y))
-                    else:
-                        if stmt.mode == stmt.MODE_ROUT:
-                            status = STAT_ROUT_UP
-                        if status == STAT_ROUT_UP:
-                            rout_statements = [stmt]
+                    center_offset = (stmt.i, stmt.j) \
+                                    if stmt.i is not None and stmt.j is not None else None
+                    coordinate_ctx.update(stmt.x, stmt.y, stmt.radius, center_offset)
+                    if stmt.x is not None or stmt.y is not None:
+                        if status == STAT_DRILL:
+                            yield DrillHitEx(current_tool, (coordinate_ctx.x, coordinate_ctx.y))
+                        elif status == STAT_ROUT_UP:
+                            rout_nodes = [coordinate_ctx.node(DrillRout.MODE_ROUT, None)]
                         elif status == STAT_ROUT_DOWN:
-                            rout_statements.append(stmt)
-                        else:
-                            raise Exception('invalid statement sequence')
+                            rout_nodes.append(coordinate_ctx.node(rout_mode, center_offset))
 
         statements = [s for s in correct_statements()]
         hits = [h for h in generate_hits(statements)]
@@ -188,28 +238,33 @@ class DrillSlotEx(DrillSlot):
         return SlotStmt(*self.start, *self.end).to_excellon(settings)
 
 class DrillRout(object):
+    MODE_ROUT = 'G00'
+    MODE_LINEAR = 'G01'
+    MODE_CIRCULER_CW = 'G02'
+    MODE_CIRCULER_CCW = 'G03'
+
     class Node(object):
-        def __init__(self, mode, x, y, radius):
+        def __init__(self, mode, x, y, radius=None, center_offset=None):
             self.mode = mode
             self.position = (x, y)
             self.radius = radius
+            self.center_offset = center_offset
 
-    @classmethod
-    def from_coordinates(cls, tool, coordinates):
-        nodes = [cls.Node(c.mode, c.x, c.y, c.radius) for c in coordinates]
-        return cls(tool, nodes)
+        def to_excellon(self, settings):
+            center_offset = self.center_offset \
+                            if self.center_offset is not None else (None, None)
+            return self.mode + CoordinateStmtEx(
+                *self.position, self.radius, *center_offset).to_excellon(settings)
 
     def __init__(self, tool, nodes):
         self.tool = tool
         self.nodes = nodes
+        self.nodes[0].mode = self.MODE_ROUT
 
     def to_excellon(self, settings):
-        node = self.nodes[0]
-        excellon = CoordinateStmtEx(*node.position, node.radius, 
-                                    CoordinateStmtEx.MODE_ROUT).to_excellon(settings) + '\nM15\n'
+        excellon = self.nodes[0].to_excellon(settings) + '\nM15\n'
         for node in self.nodes[1:]:
-            excellon += CoordinateStmtEx(*node.position, node.radius,
-                                        node.mode).to_excellon(settings) + '\n'
+            excellon += node.to_excellon(settings) + '\n'
         excellon += 'M16\nG05'
         return excellon
 
@@ -218,12 +273,16 @@ class DrillRout(object):
             node.position = tuple(map(inch, node.position))
             node.radius = inch(
                 node.radius) if node.radius is not None else None
+            if node.center_offset is not None:
+                node.center_offset = tuple(map(inch, node.center_offset))
 
     def to_metric(self):
         for node in self.nodes:
             node.position = tuple(map(metric, node.position))
             node.radius = metric(
                 node.radius) if node.radius is not None else None
+            if node.center_offset is not None:
+                node.center_offset = tuple(map(metric, node.center_offset))
 
     def offset(self, x_offset=0, y_offset=0):
         for node in self.nodes:
@@ -232,6 +291,8 @@ class DrillRout(object):
     def rotate(self, angle, center=(0, 0)):
         for node in self.nodes:
             node.position = rotate(*node.position, angle, center)
+            if node.center_offset is not None:
+                node.center_offset = rotate(*node.center_offset, angle, (0., 0.))
 
 class UnitStmtEx(UnitStmt):
     @classmethod
@@ -243,48 +304,69 @@ class UnitStmtEx(UnitStmt):
     
     def to_excellon(self, settings=None):
         format = settings.format if settings else self.format
-        stmt = '%s,%s,%s.%s' % ('INCH' if self.units == 'inch' else 'METRIC',
-                          'LZ' if self.zeros == 'leading' else 'TZ',
-                          '0' * format[0], '0' * format[1])
+        stmt = None
+        if self.units == 'inch' and format == (2, 4):
+            stmt = 'INCH,%s' % ('LZ' if self.zeros == 'leading' else 'TZ')
+        else:
+            stmt = '%s,%s,%s.%s' % ('INCH' if self.units == 'inch' else 'METRIC',
+                              'LZ' if self.zeros == 'leading' else 'TZ',
+                              '0' * format[0], '0' * format[1])
         return stmt
 
-class CoordinateStmtEx(CoordinateStmt):
-    MODE_ROUT = 'ROUT'
-    MODE_LINEAR = 'LINEAR'
-    MODE_CIRCULER_CW = 'CW'
-    MODE_CIRCULER_CCW = 'CCW'
+class CircularCWModeStmt(ExcellonStatement):
 
+    def __init__(self, **kwargs):
+        super(CircularCWModeStmt, self).__init__(**kwargs)
+
+    def to_excellon(self, settings=None):
+        return 'G02'
+
+class CircularCCWModeStmt(ExcellonStatement):
+
+    def __init__(self, **kwargs):
+        super(CircularCCWModeStmt, self).__init__(**kwargs)
+
+    def to_excellon(self, settings=None):
+        return 'G02'
+
+class CoordinateStmtEx(CoordinateStmt):
     @classmethod
     def from_statement(cls, stmt):
         newStmt = cls(x=stmt.x, y=stmt.y)
-        newStmt.mode = stmt.mode
         newStmt.radius = stmt.radius if isinstance(stmt, CoordinateStmtEx) else None
         return newStmt
 
     @classmethod
     def from_excellon(cls, line, settings, **kwargs):
-        parts = line.split('A')
-        stmt = cls.from_statement(CoordinateStmt.from_excellon(parts[0], settings))
-        if len(parts) > 1:
+        stmt = None
+        if 'A' in line:
+            parts = line.split('A')
+            stmt = cls.from_statement(CoordinateStmt.from_excellon(parts[0], settings)) \
+                   if parts[0] != '' else cls()
             stmt.radius = parse_gerber_value(
                 parts[1], settings.format, settings.zero_suppression)
+        elif 'I' in line:
+            jparts = line.split('J')
+            iparts = jparts[0].split('I')
+            stmt = cls.from_statement(CoordinateStmt.from_excellon(iparts[0], settings)) \
+                   if iparts[0] != '' else cls()
+            stmt.i = parse_gerber_value(
+                iparts[1], settings.format, settings.zero_suppression)
+            stmt.j = parse_gerber_value(
+                jparts[1], settings.format, settings.zero_suppression)
+        else:
+            stmt = cls.from_statement(CoordinateStmt.from_excellon(line, settings))
+            
         return stmt
 
-    def __init__(self, x=None, y=None, radius=None, mode=None, **kwargs):
+    def __init__(self, x=None, y=None, radius=None, i=None, j=None, **kwargs):
         super(CoordinateStmtEx, self).__init__(x, y, **kwargs)
-        self.mode = mode
         self.radius = radius
+        self.i = i
+        self.j = j
     
     def to_excellon(self, settings):
         stmt = ''
-        if self.mode == self.MODE_ROUT:
-            stmt += "G00"
-        if self.mode == self.MODE_LINEAR:
-            stmt += "G01"
-        if self.mode == self.MODE_CIRCULER_CW:
-            stmt += "G02"
-        if self.mode == self.MODE_CIRCULER_CCW:
-            stmt += "G03"
         if self.x is not None:
             stmt += 'X%s' % write_gerber_value(self.x, settings.format,
                                                settings.zero_suppression)
@@ -294,6 +376,11 @@ class CoordinateStmtEx(CoordinateStmt):
         if self.radius is not None:
             stmt += 'A%s' % write_gerber_value(self.radius, settings.format,
                                                settings.zero_suppression)
+        elif self.i is not None and self.j is not None:
+            stmt += 'I%sJ%s' % (write_gerber_value(self.i, settings.format,
+                                                   settings.zero_suppression),
+                                write_gerber_value(self.j, settings.format,
+                                                   settings.zero_suppression))
         return stmt
 
     def __str__(self):
@@ -304,6 +391,9 @@ class CoordinateStmtEx(CoordinateStmt):
             coord_str += 'Y: %g ' % self.y
         if self.radius is not None:
             coord_str += 'A: %g ' % self.radius
+        if self.i is not None:
+            coord_str += 'I: %g ' % self.i
+        if self.j is not None:
+            coord_str += 'J: %g ' % self.j
 
-        return '<Coordinate Statement: %s(%s)>' % \
-            (coord_str, self.mode if self.mode else 'HIT')
+        return '<Coordinate Statement: %s>' % (coord_str)
