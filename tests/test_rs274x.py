@@ -17,6 +17,7 @@ class TestRs274x(unittest.TestCase):
         cls.OUTPREFIX = 'RS2724x_'
         cls.METRIC_FILE = os.path.join(cls.INDIR, 'ref_gerber_metric.gtl')
         cls.INCH_FILE = os.path.join(cls.INDIR, 'ref_gerber_inch.gtl')
+        cls.SQ_FILE = os.path.join(cls.INDIR, 'ref_gerber_single_quadrant.gtl')
         try:
             os.mkdir(cls.OUTDIR)
         except FileExistsError:
@@ -62,6 +63,12 @@ class TestRs274x(unittest.TestCase):
         outfile = os.path.join(self.OUTDIR, self.OUTPREFIX + 'rotate.gtl')
         gerber = gerberex.read(self.METRIC_FILE)
         gerber.rotate(20, (10,10))
+        gerber.write(outfile)
+        self._checkResult(outfile)
+
+    def test_single_quadrant(self):
+        outfile = os.path.join(self.OUTDIR, self.OUTPREFIX + 'single_quadrant.gtl')
+        gerber = gerberex.read(self.SQ_FILE)
         gerber.write(outfile)
         self._checkResult(outfile)
 

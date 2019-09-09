@@ -208,6 +208,7 @@ class GerberContext(FileSettings):
                        1, 0,
                        1, 1)
 
+        self.in_single_quadrant_mode = False
         self.op = None
         self.interpolation = self.IP_LINEAR
         self.direction = self.DIR_CLOCKWISE
@@ -237,6 +238,9 @@ class GerberContext(FileSettings):
         elif isinstance(stmt, ADParamStmt) and not isinstance(stmt, AMParamStmtEx):
             stmt = ADParamStmtEx.from_stmt(stmt)
             return (self.TYPE_AD, [stmt])
+        elif isinstance(stmt, QuadrantModeStmt):
+            self.in_single_quadrant_mode = stmt.mode == 'single-quadrant'
+            stmt.mode = 'multi-quadrant'
         elif isinstance(stmt, CoordStmt):
             self._normalize_coordinate(stmt)
 
@@ -262,22 +266,23 @@ class GerberContext(FileSettings):
                 self.scale[1] * mx, self.scale[0] * my)
 
     def _normalize_coordinate(self, stmt):
+        if stmt.function == 'G01' or stmt.function == 'G1':
+            self.interpolation = self.IP_LINEAR
+        elif stmt.function == 'G02' or stmt.function == 'G2':
+            self.interpolation = self.IP_ARC
+            self.direction = self.DIR_CLOCKWISE
+            if self.mirror[0] != self.mirror[1]:
+                stmt.function = 'G03'
+        elif stmt.function == 'G03' or stmt.function == 'G3':
+            self.interpolation = self.IP_ARC
+            self.direction = self.DIR_COUNTERCLOCKWISE
+            if self.mirror[0] != self.mirror[1]:
+                stmt.function = 'G02'
         if stmt.only_function:
-            if stmt.function == 'G01' or stmt.function == 'G1':
-                self.interpolation = self.IP_LINEAR
-            elif stmt.function == 'G02' or stmt.function == 'G2':
-                self.interpolation = self.IP_ARC
-                self.direction = self.DIR_CLOCKWISE
-                if self.mirror[0] != self.mirror[1]:
-                    self.direction = self.DIR_COUNTERCLOCKWISE
-                    stmt.function = 'G03'
-            elif stmt.function == 'G03' or stmt.function == 'G3':
-                self.interpolation = self.IP_ARC
-                self.direction = self.DIR_COUNTERCLOCKWISE
-                if self.mirror[0] != self.mirror[1]:
-                    self.direction = self.DIR_CLOCKWISE
-                    stmt.function = 'G02'
             return
+
+        last_x = self.x
+        last_y = self.y
         if self.notation == 'absolute':
             x = stmt.x if stmt.x is not None else self.x
             y = stmt.y if stmt.y is not None else self.y
@@ -291,5 +296,15 @@ class GerberContext(FileSettings):
         stmt.x = self.matrix[0] * x + self.matrix[1]
         stmt.y = self.matrix[2] * y + self.matrix[3]
         if stmt.op == 'D01' and self.interpolation == self.IP_ARC:
-            stmt.i = self.matrix[4] * stmt.i if stmt.i is not None else 0
-            stmt.j = self.matrix[5] * stmt.j if stmt.j is not None else 0
+            qx, qy = 1, 1
+            if self.in_single_quadrant_mode:
+                if self.direction == self.DIR_CLOCKWISE:
+                    qx = 1 if y > last_y else -1
+                    qy = 1 if x < last_x else -1
+                else:
+                    qx = 1 if y < last_y else -1
+                    qy = 1 if x > last_x else -1
+                if last_x == x and last_y == y:
+                    qx, qy = 0, 0
+            stmt.i = qx * self.matrix[4] * stmt.i if stmt.i is not None else 0
+            stmt.j = qy * self.matrix[5] * stmt.j if stmt.j is not None else 0
