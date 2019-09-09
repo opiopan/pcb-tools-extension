@@ -22,7 +22,6 @@ class GerberComposition(Composition):
 
     def __init__(self, settings=None, comments=None):
         super(GerberComposition, self).__init__(settings, comments)
-        self.param_statements = []
         self.aperture_macros = {}
         self.apertures = []
         self.drawings = []
@@ -37,8 +36,6 @@ class GerberComposition(Composition):
 
     def dump(self, path):
         def statements():
-            for s in self.param_statements:
-                yield s
             for k in self.aperture_macros:
                 yield self.aperture_macros[k]
             for s in self.apertures:
@@ -46,12 +43,14 @@ class GerberComposition(Composition):
             for s in self.drawings:
                 yield s
             yield EofStmt()
+        self.settings.notation = 'absolute'
+        self.settings.zeros = 'trailing'
         with open(path, 'w') as f:
+            gerberex.rs274x.write_gerber_header(f, self.settings)
             for statement in statements():
                 f.write(statement.to_gerber(self.settings) + '\n')
 
     def _merge_gerber(self, file):
-        param_statements = []
         aperture_macro_map = {}
         aperture_map = {}
 
@@ -61,34 +60,27 @@ class GerberComposition(Composition):
             else:
                 file.to_inch()
 
-        for statement in file.statements:
-            if statement.type == 'COMMENT':
-                self.comments.append(statement.comment)
-            elif statement.type == 'PARAM':
-                if statement.param == 'AM':
-                    name = statement.name
-                    newname = self._register_aperture_macro(statement)
-                    aperture_macro_map[name] = newname
-                elif statement.param == 'AD':
-                    if not statement.shape in ['C', 'R', 'O']:
-                        statement.shape = aperture_macro_map[statement.shape]
-                    dnum = statement.d
-                    newdnum = self._register_aperture(statement)
-                    aperture_map[dnum] = newdnum
-                elif statement.param == 'LP':
-                    self.drawings.append(statement)
-                else:
-                    param_statements.append(statement)
-            elif statement.type in ['EOF', "DEPRECATED"]:
-                pass
-            else:
-                if statement.type == 'APERTURE':
-                    statement.d = aperture_map[statement.d]
-                self.drawings.append(statement)
+        for macro in file.aperture_macros:
+            statement = file.aperture_macros[macro]
+            name = statement.name
+            newname = self._register_aperture_macro(statement)
+            aperture_macro_map[name] = newname
+
+        for statement in file.aperture_defs:
+            if statement.param == 'AD':
+                if statement.shape in aperture_macro_map:
+                    statement.shape = aperture_macro_map[statement.shape]
+                dnum = statement.d
+                newdnum = self._register_aperture(statement)
+                aperture_map[dnum] = newdnum
+
+        for statement in file.main_statements:
+            if statement.type == 'APERTURE':
+                statement.d = aperture_map[statement.d]
+            self.drawings.append(statement)
         
         if not self.settings:
-            self.settings = file.settings
-            self.param_statements = param_statements
+            self.settings = file.context
 
     def _merge_dxf(self, file):
         if self.settings:
@@ -102,7 +94,6 @@ class GerberComposition(Composition):
 
         if not self.settings:
             self.settings = file.settings
-            self.param_statements = [file.header]
 
 
     def _register_aperture_macro(self, statement):

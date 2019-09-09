@@ -25,7 +25,7 @@ def loads(data, filename=None, format=None):
 
     fmt = detect_file_format(data)
     if fmt == 'rs274x':
-        file = gerber.rs274x.loads(data, filename=filename)
+        file = gerberex.rs274x.loads(data, filename=filename)
         return gerberex.rs274x.GerberFile.from_gerber_file(file)
     elif fmt == 'excellon':
         return gerberex.excellon.loads(data, filename=filename, format=format)

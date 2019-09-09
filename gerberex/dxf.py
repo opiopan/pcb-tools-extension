@@ -14,6 +14,7 @@ from gerber.excellon_statements import CoordinateStmt
 from gerberex.utility import is_equal_point, is_equal_value
 from gerberex.dxf_path import generate_closed_paths
 from gerberex.excellon import write_excellon_header
+from gerberex.rs274x import write_gerber_header
 
 ACCEPTABLE_ERROR = 0.001
 
@@ -395,6 +396,8 @@ class DxfStatements(object):
 
     def to_gerber(self, settings=FileSettings()):
         def gerbers():
+            yield 'G75*'
+            yield '%LPD*%'
             yield 'D{0}*'.format(self.dcode)
             if self.draw_mode == DxfFile.DM_FILL:
                 yield 'G36*'
@@ -450,29 +453,6 @@ class DxfStatements(object):
     def rotate(self, angle, center=(0, 0)):
         for statement in self.statements:
             statement.rotate(angle, center)
-
-class DxfHeaderStatement(object):
-    def to_gerber(self, settings):
-        return 'G75*\n'\
-               '%MO{0}*%\n'\
-               '%OFA0B0*%\n'\
-               '%FS{1}AX{2}{3}Y{4}{5}*%\n'\
-               '%IPPOS*%\n'\
-               '%LPD*%'.format(
-            'IN' if settings.units == 'inch' else 'MM',
-            'L' if settings.zero_suppression == 'leading' else 'T',
-            settings.format[0], settings.format[1],
-            settings.format[0], settings.format[1]
-        )
-    
-    def to_excellon(self, settings):
-        pass
-
-    def to_inch(self):
-        pass
-
-    def to_metric(self):
-        pass
 
 class DxfFile(CamFile):
     DM_LINE = 0
@@ -531,7 +511,6 @@ class DxfFile(CamFile):
 
         super(DxfFile, self).__init__(settings=settings, filename=filename)
         self._draw_mode = draw_mode
-        self.header = DxfHeaderStatement()
         
         self.aperture = ADParamStmt.circle(dcode=10, diameter=0.0)
         self.statements = DxfStatements(
@@ -579,7 +558,7 @@ class DxfFile(CamFile):
         filename = filename if filename is not None else self.filename
         with open(filename, 'w') as f:
             if filetype == self.FT_RX274X:
-                f.write(self.header.to_gerber(self.settings) + '\n')
+                write_gerber_header(f, self.settings)
                 f.write(self.aperture.to_gerber(self.settings) + '\n')
                 f.write(self.statements.to_gerber(self.settings) + '\n')
                 f.write('M02*\n')
@@ -593,7 +572,6 @@ class DxfFile(CamFile):
 
     def to_inch(self):
         if self.units == 'metric':
-            self.header.to_inch()
             self.aperture.to_inch()
             self.statements.to_inch()
             self.pitch = inch(self.pitch)
@@ -601,7 +579,6 @@ class DxfFile(CamFile):
 
     def to_metric(self):
         if self.units == 'inch':
-            self.header.to_metric()
             self.aperture.to_metric()
             self.statements.to_metric()
             self.pitch = metric(self.pitch)

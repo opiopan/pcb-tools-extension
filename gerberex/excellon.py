@@ -27,7 +27,7 @@ def loads(data, filename=None, settings=None, tools=None, format=None):
     return ExcellonFileEx.from_file(file)
 
 def write_excellon_header(file, settings, tools):
-    file.write('M48\nFMAT,2\nICI,OFF\n%s\n' % 
+    file.write('M48\nFMAT,2\nICI,OFF\n%s\n' %
                UnitStmtEx(settings.units, settings.zeros, settings.format).to_excellon(settings))
     for tool in tools:
         file.write(tool.to_excellon(settings) + '\n')

@@ -8,7 +8,7 @@ pcb-tools-extension adds following function  to pcb-tools.
 - Rotate PCB data
 - Write back loaded PCB data (original pcb-tools does not work in some condition)
 - Merge multiple PCB data
-- Translate DXF file to gerber data
+- Translate DXF file to PCB data
 
 Only RS-274x format and Excellon drill format data can be handled by current version of this library.
 
