@@ -10,7 +10,7 @@ def read(fname):
 
 METADATA = {
     'name': 'pcb-tools-extension',
-    'version': "0.1.6",
+    'version': "0.9.0",
     'author': 'Hiroshi Murayama <opiopan@gmail.com>',
     'author_email': "opiopan@gmail.com",
     'description': ("Extension for pcb-tools package to panelize gerber files"),
@@ -21,7 +21,7 @@ METADATA = {
     'long_description': read('README.md'),
     'long_description_content_type': 'text/markdown', 
     'classifiers': [
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Topic :: Utilities",
         "License :: OSI Approved :: Apache Software License",
         'Programming Language :: Python :: 3',

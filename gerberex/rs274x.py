@@ -53,6 +53,8 @@ class GerberFile(gerber.rs274x.GerberFile):
                 self.main_statements.extend(stmts)
         if self.context.angle != 0:
             self.rotate(self.context.angle)
+        if self.context.is_negative:
+            self.nagate_polarity()
         self.context.notation = 'absolute'
         self.context.zeros = 'trailing'
 
@@ -127,6 +129,11 @@ class GerberFile(gerber.rs274x.GerberFile):
                 last_rx, last_ry = rotate(statement.x, statement.y, angle, center)
                 statement.x = last_rx
                 statement.y = last_ry
+    
+    def nagate_polarity(self):
+        for statement in self.main_statements:
+            if isinstance(statement, LPParamStmt):
+                statement.lp = 'dark' if statement.lp == 'clear' else 'clear'
     
     def _generalize_aperture(self):
         RECTANGLE = 0
@@ -208,6 +215,9 @@ class GerberContext(FileSettings):
                        1, 0,
                        1, 1)
 
+        self.is_negative = False
+        self.is_first_coordinate = True
+        self.no_polarity = True
         self.in_single_quadrant_mode = False
         self.op = None
         self.interpolation = self.IP_LINEAR
@@ -216,6 +226,7 @@ class GerberContext(FileSettings):
         self.y = 0.
 
     def normalize_statement(self, stmt):
+        additional_stmts = None
         if isinstance(stmt, INParamStmt):
             self.name = stmt.name
         elif isinstance(stmt, MIParamStmt):
@@ -241,14 +252,24 @@ class GerberContext(FileSettings):
         elif isinstance(stmt, QuadrantModeStmt):
             self.in_single_quadrant_mode = stmt.mode == 'single-quadrant'
             stmt.mode = 'multi-quadrant'
+        elif isinstance(stmt, IPParamStmt):
+            self.is_negative = stmt.ip == 'negative'
+        elif isinstance(stmt, LPParamStmt):
+            self.no_polarity = False
         elif isinstance(stmt, CoordStmt):
             self._normalize_coordinate(stmt)
+            if self.is_first_coordinate:
+                self.is_first_coordinate = False
+                if self.no_polarity:
+                    additional_stmts = [LPParamStmt('LP', 'dark'), stmt]
 
         if type(stmt).__name__ in self.ignored_stmt:
             return (self.TYPE_NONE, None)
+        elif additional_stmts is not None:
+            return (self.TYPE_MAIN, additional_stmts)
         else:
             return (self.TYPE_MAIN, [stmt])
-    
+
     def _update_matrix(self):
         if self.axis == 'xy':
             mx = -1 if self.mirror[0] else 1
