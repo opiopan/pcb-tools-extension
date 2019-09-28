@@ -120,7 +120,7 @@ class DxfArcStatement(DxfStatement):
             self.start = (self.center[0] + self.radius, self.center[1])
             self.end = self.start
             self.start_angle = 0
-            self.end_angle = -360
+            self.end_angle = 360
             self.is_closed = True
         elif entity.dxftype == 'ARC':
             self.start_angle = self.entity.start_angle

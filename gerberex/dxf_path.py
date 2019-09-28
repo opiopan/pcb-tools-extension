@@ -202,20 +202,22 @@ class DxfPath(object):
     def to_excellon(self, settings=FileSettings(), pitch=0, width=0):
         from gerberex.dxf import DxfArcStatement
         if pitch == 0:
-            x, y = self.statements[0].start
+            x0, y0 = self.statements[0].start
             excellon = 'G00{0}\nM15\n'.format(
-                CoordinateStmtEx(x=x, y=y).to_excellon(settings))
+                CoordinateStmtEx(x=x0, y=y0).to_excellon(settings))
 
             for statement in self.statements:
-                x, y = statement.end
+                x0, y0 = statement.start
+                x1, y1 = statement.end
                 if isinstance(statement, DxfArcStatement):
-                    r = statement.radius
+                    i = statement.center[0] - x0
+                    j = statement.center[1] - y0
                     excellon += '{0}{1}\n'.format(
                         'G03' if statement.end_angle > statement.start_angle else 'G02',
-                        CoordinateStmtEx(x=x, y=y, radius=r).to_excellon(settings))
+                        CoordinateStmtEx(x=x1, y=y1, i=i, j=j).to_excellon(settings))
                 else:
                     excellon += 'G01{0}\n'.format(
-                        CoordinateStmtEx(x=x, y=y).to_excellon(settings))
+                        CoordinateStmtEx(x=x1, y=y1).to_excellon(settings))
             
             excellon += 'M16\nG05\n'
         else:
