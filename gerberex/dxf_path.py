@@ -6,10 +6,11 @@
 from gerber.utils import inch, metric, write_gerber_value
 from gerber.cam import FileSettings
 from gerberex.utility import is_equal_point, is_equal_value
+from gerberex.excellon import CoordinateStmtEx
 
 class DxfPath(object):
-    def __init__(self, statement, error_range=0):
-        self.statements = [statement]
+    def __init__(self, statements, error_range=0):
+        self.statements = statements
         self.error_range = error_range
     
     @property
@@ -22,8 +23,10 @@ class DxfPath(object):
 
     @property
     def is_closed(self):
-        return len(self.statements) > 1 and \
-               is_equal_point(self.start, self.end, self.error_range)
+        if len(self.statements) == 1:
+            return self.statements[0].is_closed
+        else:
+            return is_equal_point(self.start, self.end, self.error_range)
     
     def is_equal_to(self, target, error_range=0):
         if not isinstance(target, DxfPath):
@@ -43,12 +46,31 @@ class DxfPath(object):
                    return False
             return True
         return False
+    
+    def contain(self, target, error_range=0):
+        for statement in self.statements:
+            if statement.is_equal_to(target, error_range):
+                return True
+        else:
+            return False
 
     def to_inch(self):
         self.error_range = inch(self.error_range)
+        for statement in self.statements:
+            statement.to_inch()
 
     def to_metric(self):
         self.error_range = metric(self.error_range)
+        for statement in self.statements:
+            statement.to_metric()
+
+    def offset(self, offset_x, offset_y):
+        for statement in self.statements:
+            statement.offset(offset_x, offset_y)
+
+    def rotate(self, angle, center=(0, 0)):
+        for statement in self.statements:
+            statement.rotate(angle, center)
 
     def reverse(self):
         rlist = []
@@ -133,60 +155,118 @@ class DxfPath(object):
 
     def to_gerber(self, settings=FileSettings(), pitch=0, width=0):
         from gerberex.dxf import DxfArcStatement
-        if pitch:
-            return
+        if pitch == 0:
+            x0, y0 = self.statements[0].start
+            gerber = 'G01*\nX{0}Y{1}D02*\nG75*'.format(
+                write_gerber_value(x0, settings.format,
+                                   settings.zero_suppression),
+                write_gerber_value(y0, settings.format,
+                                   settings.zero_suppression),
+            )
 
-        x0, y0 = self.statements[0].start
-        gerber = 'G01*\nX{0}Y{1}D02*\nG75*'.format(
-            write_gerber_value(x0, settings.format,
-                               settings.zero_suppression),
-            write_gerber_value(y0, settings.format,
-                               settings.zero_suppression),
-        )
-
-        for statement in self.statements:
-            x0, y0 = statement.start
-            x1, y1 = statement.end
-            if isinstance(statement, DxfArcStatement):
-                xc, yc = statement.center
-                gerber += '\nG{0}*\nX{1}Y{2}I{3}J{4}D01*'.format(
-                    '03' if statement.end_angle > statement.start_angle else '02',
-                    write_gerber_value(x1, settings.format,
+            for statement in self.statements:
+                x0, y0 = statement.start
+                x1, y1 = statement.end
+                if isinstance(statement, DxfArcStatement):
+                    xc, yc = statement.center
+                    gerber += '\nG{0}*\nX{1}Y{2}I{3}J{4}D01*'.format(
+                        '03' if statement.end_angle > statement.start_angle else '02',
+                        write_gerber_value(x1, settings.format,
+                                           settings.zero_suppression),
+                        write_gerber_value(y1, settings.format,
+                                           settings.zero_suppression),
+                        write_gerber_value(xc - x0, settings.format,
+                                           settings.zero_suppression),
+                        write_gerber_value(yc - y0, settings.format,
+                                           settings.zero_suppression)
+                    )
+                else:
+                    gerber += '\nG01*\nX{0}Y{1}D01*'.format(
+                        write_gerber_value(x1, settings.format,
+                                           settings.zero_suppression),
+                        write_gerber_value(y1, settings.format,
+                                           settings.zero_suppression),
+                    )
+        else:
+            def ploter(x, y):
+                return 'X{0}Y{1}D03*\n'.format(
+                    write_gerber_value(x, settings.format,
                                        settings.zero_suppression),
-                    write_gerber_value(y1, settings.format,
-                                       settings.zero_suppression),
-                    write_gerber_value(xc - x0, settings.format,
-                                       settings.zero_suppression),
-                    write_gerber_value(yc - y0, settings.format,
-                                       settings.zero_suppression)
+                    write_gerber_value(y, settings.format,
+                                          settings.zero_suppression),
                 )
-            else:
-                gerber += '\nG01*\nX{0}Y{1}D01*'.format(
-                    write_gerber_value(x1, settings.format,
-                                       settings.zero_suppression),
-                    write_gerber_value(y1, settings.format,
-                                       settings.zero_suppression),
-                )
+            gerber = self._plot_dots(pitch, width, ploter)
 
         return gerber
 
-def generate_closed_paths(statements, error_range=0):
-    from gerberex.dxf import DxfLineStatement, DxfArcStatement
+    def to_excellon(self, settings=FileSettings(), pitch=0, width=0):
+        from gerberex.dxf import DxfArcStatement
+        if pitch == 0:
+            x, y = self.statements[0].start
+            excellon = 'G00{0}\nM15\n'.format(
+                CoordinateStmtEx(x=x, y=y).to_excellon(settings))
+
+            for statement in self.statements:
+                x, y = statement.end
+                if isinstance(statement, DxfArcStatement):
+                    r = statement.radius
+                    excellon += '{0}{1}\n'.format(
+                        'G03' if statement.end_angle > statement.start_angle else 'G02',
+                        CoordinateStmtEx(x=x, y=y, radius=r).to_excellon(settings))
+                else:
+                    excellon += 'G01{0}\n'.format(
+                        CoordinateStmtEx(x=x, y=y).to_excellon(settings))
+            
+            excellon += 'M16\nG05\n'
+        else:
+            def ploter(x, y):
+                return CoordinateStmtEx(x=x, y=y).to_excellon(settings) + '\n'
+            excellon = self._plot_dots(pitch, width, ploter)
+
+        return excellon
+
+    def _plot_dots(self, pitch, width, ploter):
+        out = ''
+        offset = 0
+        for idx in range(0, len(self.statements)):
+            statement = self.statements[idx]
+            if offset < 0:
+                offset += pitch
+            for dot, offset in statement.dots(pitch, width, offset):
+                if dot is None:
+                    break
+                if offset > 0 and (statement.is_closed or idx != len(self.statements) - 1):
+                    break
+                #if idx == len(self.statements) - 1 and statement.is_closed and offset > -pitch:
+                #    break
+                out += ploter(dot[0], dot[1])
+        return out
+
+
+def generate_paths(statements, error_range=0):
+    from gerberex.dxf import DxfPolylineStatement
+
+    paths = []
+    for statement in filter(lambda s: isinstance(s, DxfPolylineStatement), statements):
+        units = [unit for unit in statement.disassemble()]
+        paths.append(DxfPath(units, error_range))
 
     unique_statements = []
     redundant = 0
-    for statement in statements:
-        for target in unique_statements:
-            if not isinstance(statement, DxfLineStatement) and \
-               not isinstance(statement, DxfArcStatement):
-                break
-            if statement.is_equal_to(target, error_range):
+    for statement in filter(lambda s: not isinstance(s, DxfPolylineStatement), statements):
+        for path in paths:
+            if path.contain(statement):
                 redundant += 1
                 break
         else:
-            unique_statements.append(statement)
+            for target in unique_statements:
+                if statement.is_equal_to(target, error_range):
+                    redundant += 1
+                    break
+            else:
+                unique_statements.append(statement)
 
-    paths = [DxfPath(s, error_range) for s in unique_statements]
+    paths.extend([DxfPath([s], error_range) for s in unique_statements])
 
     prev_paths_num = 0
     while prev_paths_num != len(paths):
@@ -201,5 +281,7 @@ def generate_closed_paths(statements, error_range=0):
                 working.append(mergee)
         prev_paths_num = len(paths)
         paths = working
-    return list(filter(lambda p: p.is_closed, paths))
     
+    closed_path = list(filter(lambda p: p.is_closed, paths))
+    open_path = list(filter(lambda p: not p.is_closed, paths))
+    return (closed_path, open_path)

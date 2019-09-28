@@ -12,7 +12,7 @@ from gerber.gerber_statements import ADParamStmt
 from gerber.excellon_statements import ExcellonTool
 from gerber.excellon_statements import CoordinateStmt
 from gerberex.utility import is_equal_point, is_equal_value
-from gerberex.dxf_path import generate_closed_paths
+from gerberex.dxf_path import generate_paths
 from gerberex.excellon import write_excellon_header
 from gerberex.rs274x import write_gerber_header
 
@@ -24,12 +24,6 @@ class DxfStatement(object):
         self.start = None
         self.end = None
         self.is_closed = False
-
-    def to_gerber(self, settings=None, pitch=0, width=0):
-        pass
-
-    def to_excellon(self, settings=None, pitch=0, width=0):
-        pass
 
     def to_inch(self):
         pass
@@ -61,38 +55,6 @@ class DxfLineStatement(DxfStatement):
         super(DxfLineStatement, self).__init__(entity)
         self.start = start
         self.end = end
-    
-    def to_gerber(self, settings=FileSettings(), pitch=0, width=0):
-        if pitch == 0:
-            x0, y0 = self.start
-            x1, y1 = self.end
-            return 'G01*\nX{0}Y{1}D02*\nX{2}Y{3}D01*'.format(
-                write_gerber_value(x0, settings.format,
-                                   settings.zero_suppression),
-                write_gerber_value(y0, settings.format,
-                                   settings.zero_suppression),
-                write_gerber_value(x1, settings.format,
-                                   settings.zero_suppression),
-                write_gerber_value(y1, settings.format,
-                                   settings.zero_suppression)
-            )
-        else:
-            gstr = ""
-            for p in self._dots(pitch, width):
-                gstr += 'X{0}Y{1}D03*\n'.format(
-                    write_gerber_value(p[0], settings.format,
-                                       settings.zero_suppression),
-                    write_gerber_value(p[1], settings.format, 
-                                       settings.zero_suppression))
-            return gstr
-
-    def to_excellon(self, settings=FileSettings(), pitch=0, width=0):
-        if not pitch:
-            return
-        gstr = ""
-        for p in self._dots(pitch, width):
-            gstr += CoordinateStmt(x=p[0], y=p[1]).to_excellon(settings) + '\n'
-        return gstr
 
     def to_inch(self):
         self.start = (
@@ -119,7 +81,7 @@ class DxfLineStatement(DxfStatement):
         self.start = self.end
         self.end = pt
 
-    def _dots(self, pitch, width):
+    def dots(self, pitch, width, offset=0):
         x0, y0 = self.start
         x1, y1 = self.end
         y1 = self.end[1]
@@ -128,13 +90,18 @@ class DxfLineStatement(DxfStatement):
         l = sqrt(xp * xp + yp * yp)
         xd = xp * pitch / l
         yd = yp * pitch / l
+        x0 += xp * offset / l
+        y0 += yp * offset / l
 
-        d = 0;
-        while d < l + width / 2:
-            yield (x0, y0)
-            x0 += xd
-            y0 += yd
-            d += pitch
+        if offset > l +  width / 2:
+            return (None, offset - l)
+        else:
+            d = offset;
+            while d < l + width / 2:
+                yield ((x0, y0), d - l)
+                x0 += xd
+                y0 += yd
+                d += pitch
 
     def offset(self, offset_x, offset_y):
         self.start = (self.start[0] + offset_x, self.start[1] + offset_y)
@@ -144,104 +111,34 @@ class DxfLineStatement(DxfStatement):
         self.start = rotate_point(self.start, angle, center)
         self.end = rotate_point(self.end, angle, center)
 
-class DxfCircleStatement(DxfStatement):
-    def __init__(self, entity):
-        super(DxfCircleStatement, self).__init__(entity)
-        self.radius = self.entity.radius
-        self.center = (self.entity.center[0], self.entity.center[1])
-        self.start = (self.center[0] + self.radius, self.center[1])
-        self.end = self.start
-        self.is_closed = True
-
-    def to_gerber(self, settings=FileSettings(), pitch=0, width=0):
-        if pitch:
-            return
-        r = self.radius
-        x0, y0 = self.center
-        return 'G01*\nX{0}Y{1}D02*\n' \
-               'G75*\nG03*\nX{2}Y{3}I{4}J{5}D01*'.format(
-            write_gerber_value(x0 + r, settings.format,
-                               settings.zero_suppression),
-            write_gerber_value(y0, settings.format,
-                               settings.zero_suppression),
-
-            write_gerber_value(x0 + r, settings.format,
-                               settings.zero_suppression),
-            write_gerber_value(y0, settings.format,
-                               settings.zero_suppression),
-            write_gerber_value(-r, settings.format,
-                               settings.zero_suppression),
-            write_gerber_value(0, settings.format,
-                               settings.zero_suppression)
-        )
-
-    def to_inch(self):
-        self.radius = inch(self.radius)
-        self.center = (
-            inch(self.center[0]), inch(self.center[1]))
-
-    def to_metric(self):
-        self.radius = metric(self.radius)
-        self.center = (
-            metric(self.center[0]), metric(self.center[1]))
-
-    def is_equal_to(self, target, error_range=0):
-        if not isinstance(target, DxfCircleStatement):
-            return False
-        return is_equal_point(self.center, target.enter, error_range) and \
-               is_equal_value(self.radius, target.radius)
-
-    def reverse(self):
-        pass
-
-    def offset(self, offset_x, offset_y):
-        self.center = (self.center[0] + offset_x, self.center[1] + offset_y)
-
-    def rotate(self, angle, center=(0, 0)):
-        self.center = rotate_point(self.center, angle, center)
-
 class DxfArcStatement(DxfStatement):
     def __init__(self, entity):
         super(DxfArcStatement, self).__init__(entity)
-        self.start_angle = self.entity.start_angle
-        self.end_angle = self.entity.end_angle
-        self.radius = self.entity.radius
-        self.center = (self.entity.center[0], self.entity.center[1])
-        self.start = (
-            self.center[0] + self.radius * cos(self.start_angle / 180. * pi),
-            self.center[1] + self.radius * sin(self.start_angle / 180. * pi),
-        )
-        self.end = (
-            self.center[0] + self.radius * cos(self.end_angle / 180. * pi),
-            self.center[1] + self.radius * sin(self.end_angle / 180. * pi),
-        )
-        angle = self.end_angle - self.start_angle
-        self.is_closed = angle >= 360 or angle <= -360
-
-    def to_gerber(self, settings=FileSettings(), pitch=0, width=0):
-        if pitch:
-            return
-        x0 = self.center[0]
-        y0 = self.center[1]
-        start_x, start_y = self.start
-        end_x, end_y = self.end
-
-        return 'G01*\nX{0}Y{1}D02*\n' \
-               'G75*\nG{2}*\nX{3}Y{4}I{5}J{6}D01*'.format(
-            write_gerber_value(start_x, settings.format,
-                               settings.zero_suppression),
-            write_gerber_value(start_y, settings.format,
-                               settings.zero_suppression),
-            '02' if self.start_angle > self.end_angle else '03',
-            write_gerber_value(end_x, settings.format,
-                               settings.zero_suppression),
-            write_gerber_value(end_y, settings.format,
-                               settings.zero_suppression),
-            write_gerber_value(x0 - start_x, settings.format,
-                               settings.zero_suppression),
-            write_gerber_value(y0 - start_y, settings.format,
-                               settings.zero_suppression)
-        )
+        if entity.dxftype == 'CIRCLE':
+            self.radius = self.entity.radius
+            self.center = (self.entity.center[0], self.entity.center[1])
+            self.start = (self.center[0] + self.radius, self.center[1])
+            self.end = self.start
+            self.start_angle = 0
+            self.end_angle = -360
+            self.is_closed = True
+        elif entity.dxftype == 'ARC':
+            self.start_angle = self.entity.start_angle
+            self.end_angle = self.entity.end_angle
+            self.radius = self.entity.radius
+            self.center = (self.entity.center[0], self.entity.center[1])
+            self.start = (
+                self.center[0] + self.radius * cos(self.start_angle / 180. * pi),
+                self.center[1] + self.radius * sin(self.start_angle / 180. * pi),
+            )
+            self.end = (
+                self.center[0] + self.radius * cos(self.end_angle / 180. * pi),
+                self.center[1] + self.radius * sin(self.end_angle / 180. * pi),
+            )
+            angle = self.end_angle - self.start_angle
+            self.is_closed = angle >= 360 or angle <= -360
+        else:
+            raise Exception('invalid DXF type was specified')
 
     def to_inch(self):
         self.radius = inch(self.radius)
@@ -274,6 +171,28 @@ class DxfArcStatement(DxfStatement):
         self.start = self.end
         self.end = tmp
 
+    def dots(self, pitch, width, offset=0):
+        angle = self.end_angle - self.start_angle
+        afactor = 1 if angle > 0 else -1
+        aangle = angle * afactor
+        L = 2 * pi * self.radius
+        l = L * aangle / 360
+        pangle = pitch / L * 360
+        wangle = width / L * 360
+        oangle = offset / L * 360
+
+        if offset > l + width / 2:
+            yield (None, offset - l)
+        else:
+            da = oangle
+            while da < aangle + wangle / 2:
+                cangle = self.start_angle + da * afactor
+                x = self.radius * cos(cangle / 180 * pi) + self.center[0]
+                y = self.radius * sin(cangle / 180 * pi) + self.center[1]
+                remain = (da - aangle) / 360 * L
+                yield((x, y), remain)
+                da += pangle
+
     def offset(self, offset_x, offset_y):
         self.center = (self.center[0] + offset_x, self.center[1] + offset_y)
         self.start = (self.start[0] + offset_x, self.start[1] + offset_y)
@@ -296,36 +215,30 @@ class DxfPolylineStatement(DxfStatement):
         else:
             self.end = (self.entity.points[-1][0], self.entity.points[-1][1])
 
-    def to_gerber(self, settings=FileSettings(), pitch=0, width=0):
-        if pitch:
-            return
-        x0 = self.entity.points[0][0]
-        y0 = self.entity.points[0][1]
-        b = self.entity.bulge[0]
-        gerber = 'G01*\nX{0}Y{1}D02*\nG75*'.format(
-            write_gerber_value(x0, settings.format,
-                               settings.zero_suppression),
-            write_gerber_value(y0, settings.format,
-                               settings.zero_suppression),
-        )
-        
+    def disassemble(self):
+        class Item:
+            pass
+
         def ptseq():
             for i in range(1, len(self.entity.points)):
                 yield i
             if self.entity.is_closed:
                 yield 0
-        
+
+        x0 = self.entity.points[0][0]
+        y0 = self.entity.points[0][1]
+        b = self.entity.bulge[0]
         for idx in ptseq():
             pt = self.entity.points[idx]
             x1 = pt[0]
             y1 = pt[1]
             if b == 0:
-                gerber += '\nG01*\nX{0}Y{1}D01*'.format(
-                    write_gerber_value(x1, settings.format,
-                                       settings.zero_suppression),
-                    write_gerber_value(y1, settings.format,
-                                       settings.zero_suppression),
-                )
+                item = Item()
+                item.dxftype = 'LINE'
+                item.start = (x0, y0)
+                item.end = (x1, y1)
+                item.is_closed = False
+                yield DxfLineStatement.from_entity(item)
             else:
                 ang = 4 * atan(b)
                 xm = x0 + x1
@@ -334,24 +247,27 @@ class DxfPolylineStatement(DxfStatement):
                 xc = (xm - t * (y1 - y0)) / 2
                 yc = (ym + t * (x1 - x0)) / 2
                 r = sqrt((x0 - xc)*(x0 - xc) + (y0 - yc)*(y0 - yc))
+                rx0 = x0 - xc
+                ry0 = y0 - yc
+                rc = max(min(rx0 / r, 1.0), -1.0)
+                start_angle = acos(rc) if ry0 > 0 else 2 * pi - acos(rc)
+                start_angle *= 180 / pi
+                end_angle = start_angle + ang * 180 / pi
 
-                gerber += '\nG{0}*\nX{1}Y{2}I{3}J{4}D01*'.format(
-                    '03' if ang > 0 else '02',
-                    write_gerber_value(x1, settings.format,
-                                       settings.zero_suppression),
-                    write_gerber_value(y1, settings.format,
-                                       settings.zero_suppression),
-                    write_gerber_value(xc - x0, settings.format,
-                                       settings.zero_suppression),
-                    write_gerber_value(yc - y0, settings.format,
-                                       settings.zero_suppression)
-                )
+                item = Item()
+                item.dxftype = 'ARC'
+                item.start = (x0, y0)
+                item.end = (x1, y1)
+                item.start_angle = start_angle
+                item.end_angle = end_angle
+                item.radius = r
+                item.center = (xc, yc)
+                item.is_closed = end_angle - start_angle >= 360
+                yield DxfArcStatement(item)
 
             x0 = x1
             y0 = y1
             b = self.entity.bulge[idx]
-        
-        return gerber
 
     def to_inch(self):
         self.start = (inch(self.start[0]), inch(self.start[1]))
@@ -376,7 +292,6 @@ class DxfPolylineStatement(DxfStatement):
         for idx in range(len(self.entity.points)):
             self.entity.points[idx] = rotate_point(self.entity.points[idx], angle, center)
 
-
 class DxfStatements(object):
     def __init__(self, statements, units, dcode=10, draw_mode=None):
         if draw_mode == None:
@@ -388,7 +303,7 @@ class DxfStatements(object):
         self.width = 0
         self.error_range = inch(ACCEPTABLE_ERROR) if self._units == 'inch' else ACCEPTABLE_ERROR
         self.statements = statements
-        self.paths = generate_closed_paths(self.statements, self.error_range)
+        self.close_paths, self.open_paths = generate_paths(self.statements, self.error_range)
 
     @property
     def units(self):
@@ -401,58 +316,62 @@ class DxfStatements(object):
             yield 'D{0}*'.format(self.dcode)
             if self.draw_mode == DxfFile.DM_FILL:
                 yield 'G36*'
-                for statement in self.statements:
-                    if isinstance(statement, DxfCircleStatement) or \
-                        (isinstance(statement, DxfPolylineStatement) and statement.entity.is_closed):
-                        yield statement.to_gerber(settings)
-                for path in self.paths:
+                for path in self.close_paths:
                     yield path.to_gerber(settings)
                 yield 'G37*'
             else:
-                for statement in self.statements:
-                    yield statement.to_gerber(
-                        settings, 
-                        pitch=self.pitch if self.draw_mode == DxfFile.DM_MOUSE_BITES else 0,
-                        width=self.width)
+                pitch = self.pitch if self.draw_mode == DxfFile.DM_MOUSE_BITES else 0
+                for path in self.open_paths:
+                    yield path.to_gerber(settings, pitch=pitch, width=self.width)
+                for path in self.close_paths:
+                    yield path.to_gerber(settings, pitch=pitch, width=self.width)
 
         return '\n'.join(gerbers())
 
     def to_excellon(self, settings=FileSettings()):
-        if not self.draw_mode == DxfFile.DM_MOUSE_BITES:
+        if self.draw_mode == DxfFile.DM_FILL:
             return
         def drills():
-            for statement in self.statements:
-                if isinstance(statement, DxfLineStatement):
-                    yield statement.to_excellon(settings, pitch=self.pitch, width=self.width)
+            pitch = self.pitch if self.draw_mode == DxfFile.DM_MOUSE_BITES else 0
+            for path in self.open_paths:
+                yield path.to_excellon(settings, pitch=pitch, width=self.width)
+            for path in self.close_paths:
+                yield path.to_excellon(settings, pitch=pitch, width=self.width)
         return '\n'.join(drills())
 
     def to_inch(self):
         if self._units == 'metric':
             self._units = 'inch'
             self.pitch = inch(self.pitch)
+            self.width = inch(self.width)
             self.error_range = inch(self.error_range)
-            for statement in self.statements:
-                statement.to_inch()
-            for path in self.paths:
+            for path in self.open_paths:
+                path.to_inch()
+            for path in self.close_paths:
                 path.to_inch()
 
     def to_metric(self):
         if self._units == 'inch':
             self._units = 'metric'
             self.pitch = metric(self.pitch)
+            self.width = metric(self.width)
             self.error_range = metric(self.error_range)
-            for statement in self.statements:
-                statement.to_metric()
-            for path in self.paths:
+            for path in self.open_paths:
+                path.to_metric()
+            for path in self.close_paths:
                 path.to_metric()
     
     def offset(self, offset_x, offset_y):
-        for statement in self.statements:
-            statement.offset(offset_x, offset_y)
+        for path in self.open_paths:
+            path.offset(offset_x, offset_y)
+        for path in self.close_paths:
+            path.offset(offset_x, offset_y)
 
     def rotate(self, angle, center=(0, 0)):
-        for statement in self.statements:
-            statement.rotate(angle, center)
+        for path in self.open_paths:
+            path.rotate(angle, center)
+        for path in self.close_paths:
+            path.rotate(angle, center)
 
 class DxfFile(CamFile):
     DM_LINE = 0
@@ -483,7 +402,7 @@ class DxfFile(CamFile):
             elif entity.dxftype == 'LINE':
                 statements.append(DxfLineStatement.from_entity(entity))
             elif entity.dxftype == 'CIRCLE':
-                statements.append(DxfCircleStatement(entity))
+                statements.append(DxfArcStatement(entity))
             elif entity.dxftype == 'ARC':
                 statements.append(DxfArcStatement(entity))
         
@@ -513,6 +432,10 @@ class DxfFile(CamFile):
         self._draw_mode = draw_mode
         
         self.aperture = ADParamStmt.circle(dcode=10, diameter=0.0)
+        if settings.units == 'inch':
+            self.aperture.to_inch()
+        else:
+            self.aperture.to_metric()
         self.statements = DxfStatements(
             statements, self.units, dcode=self.aperture.d, draw_mode=self.draw_mode)
 

@@ -70,19 +70,21 @@ ctx.dump('panelized-board.txt')
 ## DXF file translation
 
 ### PCB Outline
-You can also load a dxf file and handle that as same as RX-274x gerber file.<br>
+You can also load a dxf file and handle that as same as RX-274x gerber file or Excellon NC file.<br>
 This function is useful to generate outline data of pnanelized PCB boad.
 
 ```python
 import gerberex
 
-ctx = gerberex.GerberComposition()
 dxf = gerberex.read('outline.dxf')
-ctx.merge(dxf)
+ctx1 = gerberex.GerberComposition()
+ctx1.merge(dxf)
+ctx2 = gerberex.DrillComposition()
+ctx2.merge(dxf)
 ```
 Circle object, Arc object, Line object and Polyline object are supported. Other kind of objects in DXF file are ignored when translating to gerber data.
 
-You can specify line width (default 0). PCB tools extension will translate DXF primitive shape to RX-274x line or arc sequense using circle aperture with diamater as same as specified line width.<br>
+You can specify line width (default 0). PCB tools extension will translate DXF primitive shape to RX-274x line or arc sequense using circle aperture with diamater as same as specified line width. <br>
 
 ```python
 import gerberex
@@ -93,12 +95,27 @@ dxf.width = 0.004
 dxf.write('outline.gml')
 ```
 
+If ```FT_EXCELLON``` is specified for ```filetype``` argument of ```write()```, Excellon NC data is generated. In this case, Excellon file consists of routing commands using a specified width drill.
+
+
+```python
+import gerberex
+
+dxf = gerberex.read('outline.dxf')
+dxf.to_metric()
+dxf.width = 0.3
+dxf.write('outline.txt', filetype=dxf.FT_EXCELLON)
+```
+
+
 You can also translate DXF closed shape such as circle to RX-274x polygon fill sequence.<br>
 In order to fill closed shape, ```DM_FILL``` has to be set to ```draw_mode``` property. In this mode, All object except closed shapes listed below are ignored.
 
 - circle
 - closed polyline 
 - closed path which consists of lines and arcs
+
+NOTE: ```DM_FILL``` can be used only to generate RX-274x data, it cannot be used to generate Excellon data.
 
 ```python
 import gerberex
@@ -122,7 +139,7 @@ outline.write('outline.gml')
 <img alt="mouse bites" src="https://raw.githubusercontent.com/wiki/opiopan/pcb-tools-extension/images/mousebites.png" width=200 align="right">
 
 
-If ```DM_MOUSE_BITES``` is specified for ```draw_mode```, filled circles are arranged along a DXF line object at equal intervals. <br>
+If ```DM_MOUSE_BITES``` is specified for ```draw_mode```, filled circles are arranged at equal intervals along a paths consisted of DXF line, arc, circle, and plyline objects. <br>
 DXF file object in this state can be merged to excellon file also. That means you can arrange mouse bites easily.
 
 ```python
