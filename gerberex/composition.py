@@ -138,7 +138,9 @@ class DrillComposition(Composition):
                     if num == t.number:
                         yield statement.to_excellon(self.settings)
             yield EndOfProgramStmt().to_excellon()
-        
+
+        self.settings.notation = 'absolute'
+        self.settings.zeros = 'trailing'
         with open(path, 'w') as f:
             gerberex.excellon.write_excellon_header(f, self.settings, self.tools)
             for statement in statements():

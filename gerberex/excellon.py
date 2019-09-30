@@ -200,6 +200,8 @@ class ExcellonFileEx(ExcellonFile):
             self.units = 'metric'
     
     def write(self, filename=None):
+        self.notation = 'absolute'
+        self.zeros = 'trailing'
         filename = filename if filename is not None else self.filename
         with open(filename, 'w') as f:
             write_excellon_header(f, self.settings, [self.tools[t] for t in self.tools])

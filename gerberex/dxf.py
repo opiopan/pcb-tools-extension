@@ -475,9 +475,8 @@ class DxfFile(CamFile):
         self.statements.pitch = value
     
     def write(self, filename=None, filetype=FT_RX274X):
-        if self.settings.notation != 'absolute':
-            raise Exception('DXF file\'s notation must be absolute ')
-        
+        self.settings.notation = 'absolute'
+        self.settings.zeros = 'trailing'
         filename = filename if filename is not None else self.filename
         with open(filename, 'w') as f:
             if filetype == self.FT_RX274X:
