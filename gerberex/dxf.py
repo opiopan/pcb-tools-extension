@@ -12,11 +12,87 @@ from gerber.gerber_statements import ADParamStmt
 from gerber.excellon_statements import ExcellonTool
 from gerber.excellon_statements import CoordinateStmt
 from gerberex.utility import is_equal_point, is_equal_value
-from gerberex.dxf_path import generate_paths
+from gerberex.dxf_path import generate_paths, judge_containment
 from gerberex.excellon import write_excellon_header
 from gerberex.rs274x import write_gerber_header
 
 ACCEPTABLE_ERROR = 0.001
+
+def _normalize_angle(start_angle, end_angle):
+    angle = end_angle - start_angle
+    if angle > 0:
+        start = start_angle % 360
+    else:
+        angle = -angle
+        start = end_angle % 360
+    angle = min(angle, 360)
+    start = start - 360 if  start > 180 else start
+
+    regions = []
+    while angle > 0:
+        end = start + angle
+        if  end <= 180:
+            regions.append((start * pi / 180, end * pi / 180))
+            angle = 0
+        else:
+            regions.append((start * pi / 180, pi))
+            angle = end - 180
+            start = -180
+    return regions
+
+def _intersections_of_line_and_circle(start, end, center, radius, error_range):
+    x1 = start[0] - center[0]
+    y1 = start[1] - center[1]
+    x2 = end[0] - center[0]
+    y2 = end[1] - center[1]
+
+    dx = x2 - x1
+    dy = y2 - y1
+    dr = sqrt(dx * dx + dy * dy)
+    D = x1 * y2 - x2 * y1
+
+    D2 = D * D
+    dr2 = dr * dr
+    r2 = radius * radius
+    delta = r2 * dr2 - D2
+    e4 = error_range * error_range * error_range * error_range * 10
+    if delta > - e4 and delta < e4:
+        delta = 0
+    if delta < 0:
+        return None
+
+    sqrt_D = sqrt(delta)
+    E_x = -dx * sqrt_D if dy < 0 else dx * sqrt_D
+    E_y = abs(dy) * sqrt_D
+
+    p1_x = (D * dy + E_x) / dr2
+    p2_x = (D * dy - E_x) / dr2
+    p1_y = (-D * dx + E_y) / dr2
+    p2_y = (-D * dx - E_y) / dr2
+
+    p1_angle = atan2(p1_y, p1_x)
+    p2_angle = atan2(p2_y, p2_x)
+    if dx == 0: 
+        p1_t = (p1_y - y1) / dy
+        p2_t = (p2_y - y1) / dy
+    else:
+        p1_t = (p1_x - x1) / dx
+        p2_t = (p2_x - x1) / dx
+
+    if delta == 0:
+        return (
+            (p1_x + center[0], p1_y + center[1]),
+            None,
+            p1_angle, None,
+            p1_t, None
+        )
+    else:
+        return (
+            (p1_x + center[0], p1_y + center[1]),
+            (p2_x + center[0], p2_y + center[1]),
+            p1_angle, p2_angle,
+            p1_t, p2_t
+        )
 
 class DxfStatement(object):
     def __init__(self, entity):
@@ -50,6 +126,13 @@ class DxfLineStatement(DxfStatement):
         start = (entity.start[0], entity.start[1])
         end = (entity.end[0], entity.end[1])
         return cls(entity, start, end)
+
+    @property
+    def bounding_box(self):
+        return (min(self.start[0], self.end[0]),
+                min(self.start[1], self.end[1]),
+                max(self.start[0], self.end[0]),
+                max(self.start[1], self.end[1]))
 
     def __init__(self, entity, start, end):
         super(DxfLineStatement, self).__init__(entity)
@@ -110,6 +193,53 @@ class DxfLineStatement(DxfStatement):
     def rotate(self, angle, center=(0, 0)):
         self.start = rotate_point(self.start, angle, center)
         self.end = rotate_point(self.end, angle, center)
+    
+    def intersections_with_halfline(self, point_from, point_to, error_range):
+        denominator = (self.end[0] - self.start[0]) * (point_to[1] - point_from[1]) - \
+                      (self.end[1] - self.start[1]) * (point_to[0] - point_from[0])
+        de = error_range * error_range
+        if denominator > -de and denominator < de:
+            return []
+        from_dx = point_from[0] - self.start[0]
+        from_dy = point_from[1] - self.start[1]
+        r = ((point_to[1] - point_from[1]) * from_dx - 
+             (point_to[0] - point_from[0]) * from_dy) / denominator
+        s = ((self.end[1] - self.start[1]) * from_dx -
+             (self.end[0] - self.start[0]) * from_dy) / denominator
+        dx = (self.end[0] - self.start[0])
+        dy = (self.end[1] - self.start[1])
+        le = error_range / sqrt(dx * dx + dy * dy)
+        if s < 0 or r < -le or r > 1 + le:
+            return []
+        
+        pt = (self.start[0] + (self.end[0] - self.start[0]) * r,
+              self.start[1] + (self.end[1] - self.start[1]) * r)
+        if is_equal_point(pt, self.start, error_range):
+            return []
+        else:
+            return [pt]
+
+    def intersections_with_arc(self, center, radius, angle_regions, error_range):
+        intersection = \
+            _intersections_of_line_and_circle(self.start, self.end, center, radius, error_range)
+        if intersection is None:
+            return []
+        else:
+            p1, p2, p1_angle, p2_angle, p1_t, p2_t = intersection
+
+        pts = []
+        if p1_t >= 0 and p1_t <= 1:
+            for region in angle_regions:
+                if p1_angle >= region[0] and p1_angle <= region[1]:
+                    pts.append(p1)
+                    break
+        if p2 is not None and p2_t >= 0 and p2_t <= 1:
+            for region in angle_regions:
+                if p2_angle >= region[0] and p2_angle <= region[1]:
+                    pts.append(p2)
+                    break
+
+        return pts
 
 class DxfArcStatement(DxfStatement):
     def __init__(self, entity):
@@ -139,6 +269,12 @@ class DxfArcStatement(DxfStatement):
             self.is_closed = angle >= 360 or angle <= -360
         else:
             raise Exception('invalid DXF type was specified')
+        self.angle_regions = _normalize_angle(self.start_angle, self.end_angle)
+
+    @property
+    def bounding_box(self):
+        return (self.center[0] - self.radius, self.center[1] - self.radius,
+                self.center[0] + self.radius, self.center[1] + self.radius)
 
     def to_inch(self):
         self.radius = inch(self.radius)
@@ -204,6 +340,82 @@ class DxfArcStatement(DxfStatement):
         self.center = rotate_point(self.center, angle, center)
         self.start = rotate_point(self.start, angle, center)
         self.end = rotate_point(self.end, angle, center)
+        self.angle_regions = _normalize_angle(self.start_angle, self.end_angle)
+
+    def intersections_with_halfline(self, point_from, point_to, error_range):
+        intersection = \
+            _intersections_of_line_and_circle(
+                point_from, point_to, self.center, self.radius, error_range)
+        if intersection is None:
+            return []
+        else:
+            p1, p2, p1_angle, p2_angle, p1_t, p2_t = intersection
+        
+        if is_equal_point(p1, self.start, error_range):
+            p1 = None
+        elif p2 is not None and is_equal_point(p2, self.start, error_range):
+            p2 = None
+
+        aerror = error_range * self.radius
+        pts = []
+        if p1 is not None and p1_t >= 0 and not is_equal_point(p1, self.start, error_range):
+            for region in self.angle_regions:
+                if p1_angle >= region[0] - aerror and p1_angle <= region[1] + aerror:
+                    pts.append(p1)
+                    break
+        if p2 is not None and p2_t >= 0 and not is_equal_point(p2, self.start, error_range):
+            for region in self.angle_regions:
+                if p2_angle >= region[0] - aerror and p2_angle <= region[1] + aerror:
+                    pts.append(p2)
+                    break
+
+        return pts
+
+    def intersections_with_arc(self, center, radius, angle_regions, error_range):
+        x1 = center[0] - self.center[0]
+        y1 = center[1] - self.center[1]
+        r1 = self.radius
+        r2 = radius
+        cd_sq = x1 * x1 + y1 * y1
+        cd = sqrt(cd_sq)
+        rd = abs(r1 - r2)
+
+        if (cd >= 0 and cd <= rd) or cd >= r1 + r2:
+            return []
+        
+        A = (cd_sq + r1 * r1 - r2 * r2) / 2
+        scale = sqrt(cd_sq * r1 * r1 - A * A) / cd_sq
+        xl = A * x1 / cd_sq
+        xr = y1 * scale
+        yl = A * y1 / cd_sq
+        yr = x1 * scale
+
+        pt1_x = xl + xr
+        pt1_y = yl - yr
+        pt2_x = xl - xr
+        pt2_y = yl + yr
+        pt1_angle1 = atan2(pt1_y, pt1_x)
+        pt1_angle2 = atan2(pt1_y - y1, pt1_x - x1)
+        pt2_angle1 = atan2(pt2_y, pt2_x)
+        pt2_angle2 = atan2(pt2_y - y1, pt2_x - x1)
+
+        aerror = error_range * self.radius
+        pts=[]
+        for region in self.angle_regions:
+            if pt1_angle1 >= region[0] and pt1_angle1 <= region[1]:
+                for region in angle_regions:
+                    if pt1_angle2 >= region[0] - aerror and pt1_angle2 <= region[1] + aerror:
+                        pts.append((pt1_x + self.center[0], pt1_y + self.center[1]))
+                        break
+                break
+        for region in self.angle_regions:
+            if pt2_angle1 >= region[0] and pt2_angle1 <= region[1]:
+                for region in angle_regions:
+                    if pt2_angle2 >= region[0] - aerror and pt2_angle2 <= region[1] + aerror:
+                        pts.append((pt2_x + self.center[0], pt2_y + self.center[1]))
+                        break
+                break
+        return pts
 
 class DxfPolylineStatement(DxfStatement):
     def __init__(self, entity):
@@ -293,31 +505,69 @@ class DxfPolylineStatement(DxfStatement):
             self.entity.points[idx] = rotate_point(self.entity.points[idx], angle, center)
 
 class DxfStatements(object):
-    def __init__(self, statements, units, dcode=10, draw_mode=None):
-        if draw_mode == None:
+    def __init__(self, statements, units, dcode=10, draw_mode=None, fill_mode=None):
+        if draw_mode is None:
             draw_mode = DxfFile.DM_LINE
+        if fill_mode is None:
+            fill_mode = DxfFile.FM_TURN_OVER
         self._units = units
         self.dcode = dcode
         self.draw_mode = draw_mode
+        self.fill_mode = fill_mode
         self.pitch = inch(1) if self._units == 'inch' else 1
         self.width = 0
         self.error_range = inch(ACCEPTABLE_ERROR) if self._units == 'inch' else ACCEPTABLE_ERROR
-        self.statements = statements
+        self.statements = list(filter(
+            lambda i: not (isinstance(i, DxfLineStatement) and \
+                          is_equal_point(i.start, i.end, self.error_range)),
+            statements
+        ))
         self.close_paths, self.open_paths = generate_paths(self.statements, self.error_range)
+        self.sorted_close_paths = []
+        self.polarity = True # True means dark, False means clear
 
     @property
     def units(self):
         return _units
 
+    def _polarity_command(self, polarity=None):
+        if polarity is None:
+            polarity = self.polarity
+        return '%LPD*%' if polarity else '%LPC*%'
+
+    def _prepare_sorted_close_paths(self):
+        if self.sorted_close_paths:
+            return
+        for i in range(0, len(self.close_paths)):
+            for j in range(i + 1, len(self.close_paths)):
+                containee, container = judge_containment(
+                    self.close_paths[i], self.close_paths[j], self.error_range)
+                if containee is not None:
+                    containee.containers.append(container)
+        self.sorted_close_paths = sorted(self.close_paths, key=lambda path: len(path.containers))
+
     def to_gerber(self, settings=FileSettings()):
         def gerbers():
             yield 'G75*'
-            yield '%LPD*%'
+            yield self._polarity_command()
             yield 'D{0}*'.format(self.dcode)
             if self.draw_mode == DxfFile.DM_FILL:
                 yield 'G36*'
-                for path in self.close_paths:
-                    yield path.to_gerber(settings)
+                if self.fill_mode == DxfFile.FM_TURN_OVER:
+                    self._prepare_sorted_close_paths()
+                    polarity = self.polarity
+                    level = 0
+                    for path in self.sorted_close_paths:
+                        if len(path.containers) > level:
+                            level = len(path.containers)
+                            polarity = not polarity
+                            yield 'G37*'
+                            yield self._polarity_command(polarity)
+                            yield 'G36*'
+                        yield path.to_gerber(settings)
+                else:
+                    for path in self.close_paths:
+                        yield path.to_gerber(settings)
                 yield 'G37*'
             else:
                 pitch = self.pitch if self.draw_mode == DxfFile.DM_MOUSE_BITES else 0
@@ -378,6 +628,9 @@ class DxfFile(CamFile):
     DM_FILL = 1
     DM_MOUSE_BITES = 2
 
+    FM_SIMPLE = 0
+    FM_TURN_OVER = 1
+
     FT_RX274X = 0
     FT_EXCELLON = 1
 
@@ -430,6 +683,7 @@ class DxfFile(CamFile):
 
         super(DxfFile, self).__init__(settings=settings, filename=filename)
         self._draw_mode = draw_mode
+        self._fill_mode = self.FM_TURN_OVER
         
         self.aperture = ADParamStmt.circle(dcode=10, diameter=0.0)
         if settings.units == 'inch':
@@ -437,7 +691,7 @@ class DxfFile(CamFile):
         else:
             self.aperture.to_metric()
         self.statements = DxfStatements(
-            statements, self.units, dcode=self.aperture.d, draw_mode=self.draw_mode)
+            statements, self.units, dcode=self.aperture.d, draw_mode=self.draw_mode, fill_mode=self.filename)
 
     @property
     def dcode(self):
@@ -465,6 +719,15 @@ class DxfFile(CamFile):
     def draw_mode(self, value):
         self._draw_mode = value
         self.statements.draw_mode = value
+
+    @property
+    def fill_mode(self):
+        return self._fill_mode
+    
+    @fill_mode.setter
+    def fill_mode(self, value):
+        self._fill_mode = value
+        self.statements.fill_mode = value
 
     @property
     def pitch(self):
@@ -511,6 +774,9 @@ class DxfFile(CamFile):
     
     def rotate(self, angle, center=(0, 0)):
         self.statements.rotate(angle, center)
+
+    def negate_polarity(self):
+        self.statements.polarity = not self.statements.polarity
 
 def loads(data, filename=None):
     if sys.version_info.major == 2:

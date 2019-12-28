@@ -18,7 +18,6 @@ boards=[
 ]
 outline =    'inputs/outline.dxf'
 mousebites = 'inputs/mousebites.dxf'
-fill =       'inputs/fill.dxf'
 outputs =    'outputs/panelized'
 
 os.chdir(os.path.dirname(__file__))
@@ -62,9 +61,11 @@ file = gerberex.read(outline)
 file.write(outputs + '.GML')
 putstr('.')
 ctx = GerberComposition()
-file = gerberex.read(fill)
-file.to_metric()
+base = gerberex.rectangle(width=100, height=100, left=0, bottom=0, units='metric')
+base.draw_mode = DxfFile.DM_FILL
+ctx.merge(base)
 file.draw_mode = DxfFile.DM_FILL
+file.negate_polarity()
 ctx.merge(file)
 ctx.dump(outputs + '-fill.GML')
 

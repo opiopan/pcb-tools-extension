@@ -19,7 +19,6 @@ class TestExcellon(unittest.TestCase):
         cls.OUTPREFIX = 'dxf_'
         cls.METRIC_FILE = os.path.join(cls.INDIR, 'ref_dxf_metric.dxf')
         cls.INCH_FILE = os.path.join(cls.INDIR, 'ref_dxf_inch.dxf')
-        cls.MOUSEBITES_FILE = os.path.join(cls.INDIR, 'ref_dxf_mousebites.dxf')
         try:
             os.mkdir(cls.OUTDIR)
         except FileExistsError:
@@ -36,6 +35,7 @@ class TestExcellon(unittest.TestCase):
         outfile = os.path.join(self.OUTDIR, self.OUTPREFIX + 'save_line.gtl')
         dxf = gerberex.read(self.METRIC_FILE)
         dxf.draw_mode = dxf.DM_LINE
+        dxf.width = 0.2
         dxf.write(outfile)
         self._checkResult(outfile)
 
@@ -46,23 +46,41 @@ class TestExcellon(unittest.TestCase):
         dxf.write(outfile)
         self._checkResult(outfile)
 
+    def test_save_fill_simple(self):
+        outfile = os.path.join(self.OUTDIR, self.OUTPREFIX + 'save_fill_simple.gtl')
+        dxf = gerberex.read(self.METRIC_FILE)
+        dxf.draw_mode = dxf.DM_FILL
+        dxf.fill_mode = dxf.FM_SIMPLE
+        dxf.write(outfile)
+        self._checkResult(outfile)
+
     def test_save_mousebites(self):
         outfile = os.path.join(self.OUTDIR, self.OUTPREFIX + 'save_mousebites.gtl')
-        dxf = gerberex.read(self.MOUSEBITES_FILE)
+        dxf = gerberex.read(self.METRIC_FILE)
         dxf.draw_mode = dxf.DM_MOUSE_BITES
         dxf.width = 0.5
-        dxf.pitch = 1
+        dxf.pitch = 1.4
         dxf.write(outfile)
         self._checkResult(outfile)
 
     def test_save_excellon(self):
         outfile = os.path.join(
-            self.OUTDIR, self.OUTPREFIX + 'save_mousebites.txt')
-        dxf = gerberex.read(self.MOUSEBITES_FILE)
-        dxf.draw_mode = dxf.DM_MOUSE_BITES
+            self.OUTDIR, self.OUTPREFIX + 'save_line.txt')
+        dxf = gerberex.read(self.METRIC_FILE)
+        dxf.draw_mode = dxf.DM_LINE
         dxf.format = (3,3)
+        dxf.width = 0.2
+        dxf.write(outfile, filetype=dxf.FT_EXCELLON)
+        self._checkResult(outfile)
+
+    def test_save_excellon_mousebites(self):
+        outfile = os.path.join(
+            self.OUTDIR, self.OUTPREFIX + 'save_mousebites.txt')
+        dxf = gerberex.read(self.METRIC_FILE)
+        dxf.draw_mode = dxf.DM_MOUSE_BITES
+        dxf.format = (3, 3)
         dxf.width = 0.5
-        dxf.pitch = 1
+        dxf.pitch = 1.4
         dxf.write(outfile, filetype=dxf.FT_EXCELLON)
         self._checkResult(outfile)
 

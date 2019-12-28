@@ -68,63 +68,35 @@ ctx.dump('panelized-board.txt')
 ```
 
 ## DXF file translation
+pcb-tools-extension hsa a function to load a DXF file and handle that as same as RX-274x gerber file or Excellon NC file.<br>
+In this version, Only line, circle, arc, and polyline objects are recognized and are translated to gerber file or NC file.
 
-### PCB Outline
-You can also load a dxf file and handle that as same as RX-274x gerber file or Excellon NC file.<br>
-This function is useful to generate outline data of pnanelized PCB boad.
-
-```python
-import gerberex
-
-dxf = gerberex.read('outline.dxf')
-ctx1 = gerberex.GerberComposition()
-ctx1.merge(dxf)
-ctx2 = gerberex.DrillComposition()
-ctx2.merge(dxf)
-```
-Circle object, Arc object, Line object and Polyline object are supported. Other kind of objects in DXF file are ignored when translating to gerber data.
-
-You can specify line width (default 0). PCB tools extension will translate DXF primitive shape to RX-274x line or arc sequense using circle aperture with diamater as same as specified line width. <br>
+### Two way to tranlate DXF file
+Both composition objects, ```GerberComposition``` for RX-274x and ```DrillionComposition``` for Excellon, can accept an object created as result of DXF file loaded. When composition object dump text stream, DXF data tranclate to appropriate format data.<br>
+The object which represent DXF file, can also output translated data directly by ```save``` method. In this case output format is specified by ```filetype``` argument. If ```filetype``` argument is ommited, DXF data is translated to RX-274x gerber data.
 
 ```python
 import gerberex
+dxf = gerberex.read('sample.dxf')
 
-dxf = gerberex.read('outline.dxf')
-dxf.to_inch()
-dxf.width = 0.004
-dxf.write('outline.gml')
+# translate to RX-274x using composition object
+ctx = gerberex.GerberComposition()
+ctx.merge(dxf)
+ctx.dump('sample.gml')
+
+# translate to Excellon using composition object
+ctx = gerberex.DrillComposition()
+ctx.merge(dxf)
+ctx.dump('sample.txt')
+
+# translate to RX-274x directly
+dxf.save('sample2.gml')
+
+# translate to Excellon directly
+dxf.save('sample2.txt', filetype=dxf.FT_EXCELLON)
 ```
 
-If ```FT_EXCELLON``` is specified for ```filetype``` argument of ```write()```, Excellon NC data is generated. In this case, Excellon file consists of routing commands using a specified width drill.
-
-
-```python
-import gerberex
-
-dxf = gerberex.read('outline.dxf')
-dxf.to_metric()
-dxf.width = 0.3
-dxf.write('outline.txt', filetype=dxf.FT_EXCELLON)
-```
-
-
-You can also translate DXF closed shape such as circle to RX-274x polygon fill sequence.<br>
-In order to fill closed shape, ```DM_FILL``` has to be set to ```draw_mode``` property. In this mode, All object except closed shapes listed below are ignored.
-
-- circle
-- closed polyline 
-- closed path which consists of lines and arcs
-
-NOTE: ```DM_FILL``` can be used only to generate RX-274x data, it cannot be used to generate Excellon data.
-
-```python
-import gerberex
-
-dxf = gerberex.read('outline.dxf')
-dxf.draw_mode = dxf.DM_FILL
-dxf.write('outline.gml')
-```
-
+### Generating Rectangle
 If you want to arrange simple rectangle for PCB outline, ```gerberex.rectangle()``` is better solution. This generate a object representing a rectangle compatible with DXF file object.<br>
 
 ```python
@@ -134,30 +106,83 @@ outline = gerberex.rectangle(width=100, height=100, units='metric')
 outline.write('outline.gml')
 ```
 
-### Mouse bites
+### Drawing Mode
+PCB tools extension provide three type of translation method that affects geometric finish. These method are specified a value for ```draw_mode``` attribute, ```DM_LINE```, ```DM_MOUSE_BITES```, or ```DM_FILL```.<br>
+```DM_LINE``` and ```DM_MOUSE_BITES``` are used to translate to both of RX-274x and Excellon, however ```DM_FILL``` is used to translate to only RX-274x.
 
-<img alt="mouse bites" src="https://raw.githubusercontent.com/wiki/opiopan/pcb-tools-extension/images/mousebites.png" width=200 align="right">
+![Drawing Mode](https://raw.githubusercontent.com/wiki/opiopan/pcb-tools-extension/images/draw_mode.jpg)
 
+- **draw_mode = DM_LINE**<br>
+    All edge expressed as DXF line object, circle object, arc object and plyline objects are translated to line and arc applied a circular aperture in case of RX-274x. That circular aperture r radius is specified by ```width``` attribute. Default value of width is 0.<br>
+    In case of Excellon, DXF objects are translated to routing path command sequence.
+    This function is useful to generate outline data of pnanelized PCB boad.
 
-If ```DM_MOUSE_BITES``` is specified for ```draw_mode```, filled circles are arranged at equal intervals along a paths consisted of DXF line, arc, circle, and plyline objects. <br>
-DXF file object in this state can be merged to excellon file also. That means you can arrange mouse bites easily.
+    ```python
+    import gerberex
 
-```python
-import gerberex
+    dxf = gerberex.read('outline.dxf')
+    dxf.to_inch()
+    dxf.width = 0.004
+    dxf.write('outline.gml')
+    ```
 
-ctx = gerberex.DrillComposition()
-drill = gerberex.read('drill.txt')
-ctx.merge(drill)
+- **draw_mode = DM_MOUSE_BITES**<br>
+    <img alt="mouse bites" src="https://raw.githubusercontent.com/wiki/opiopan/pcb-tools-extension/images/mousebites.png" width=200 align="right">
+    If DM_MOUSE_BITES is specified for draw_mode, filled circles are arranged at equal intervals along a paths consisted of DXF line, arc, circle, and plyline objects. 
+    DXF file object in this state can be merged to excellon file also. That means you can arrange mouse bites easily.    
 
-dxf = gerberex.read('mousebites.dxf')
-dxf.draw_mode = dxf.DM_MOUSE_BITES
-dxf.to_metric()
-dxf.width = 0.5
-dxf.pitch = 1
-ctx.merge(dxf)
+    ```python
+    import gerberex
 
-ctx.dump('merged_drill.txt')
-```
+    ctx = gerberex.DrillComposition()
+    drill = gerberex.read('drill.txt')
+    ctx.merge(drill)
+
+    dxf = gerberex.read('mousebites.dxf')
+    dxf.draw_mode = dxf.DM_MOUSE_BITES
+    dxf.to_metric()
+    dxf.width = 0.5
+    dxf.pitch = 1
+    ctx.merge(dxf)
+
+    ctx.dump('merged_drill.txt')
+    ```
+
+- **draw_mode = DM_FILL**<br>
+    You can translate DXF closed shape such as circle to RX-274x polygon fill sequence.<br>
+    In order to fill closed shape, ```DM_FILL``` has to be set to ```draw_mode``` property. In this mode, All object except closed shapes listed below are ignored.
+
+    - circle
+    - closed polyline 
+    - closed path which consists of lines and arcs
+
+    If a closed shape is completly included in other closed shape, The inner shape will be draw with reversed polality of container shape as above example image.<br>
+
+    I assume there are two typical usecase for this mode.<br>
+    One is to arrange logo design on silk layer. This is superior to other method generating raster image data since image data express as vector data.<br>
+    The other one is generating gerber data represented cropped area of panelized PCB.
+    By merging rectangle and PCB outline data, generate a file represented cropped area as below, and this kind of data is useful to make PCB image look good a little bit.<br>
+    [This script](https://github.com/opiopan/pcb-tools-extension/blob/master/examples/genimage.py) which generate example image shown below, also uses this technic.
+
+    ```python
+    import gerberex
+
+    ctx = gerberex.GerberComposition()
+
+    rectangle = gerberex.rectangle(width=100, height=100, units='metric')
+    rectangle.draw_mode = rectangle.DM_FILL
+    ctx.merge(rectangle)
+    
+    outline = gerberex.read('outline.dxf')
+    outline.draw_mode = outline.DM_FILL
+    outline.negate_polarity()
+    ctx.merge(outline)
+
+    ctx.dump('cropped_area.gml')
+    ```
+
+    NOTE: ```DM_FILL``` can be used only to generate RX-274x data, it cannot be used to generate Excellon data.
+
 
 ## Panelizing Example
 This example board image is generated by following scripts from [these source data](https://github.com/opiopan/pcb-tools-extension/tree/master/examples/inputs).
