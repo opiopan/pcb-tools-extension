@@ -107,14 +107,14 @@ outline.write('outline.gml')
 ```
 
 ### Drawing Mode
-PCB tools extension provide three type of translation method that affects geometric finish. These method are specified a value for ```draw_mode``` attribute, ```DM_LINE```, ```DM_MOUSE_BITES```, or ```DM_FILL```.<br>
+PCB tools extension provide three type of translation method that affects geometric finish. These method are specified a value for ```draw_mode``` attribute, as ```DM_LINE```, ```DM_MOUSE_BITES```, or ```DM_FILL```.<br>
 ```DM_LINE``` and ```DM_MOUSE_BITES``` are used to translate to both of RX-274x and Excellon, however ```DM_FILL``` is used to translate to only RX-274x.
 
 ![Drawing Mode](https://raw.githubusercontent.com/wiki/opiopan/pcb-tools-extension/images/draw_mode.jpg)
 
 - **draw_mode = DM_LINE**<br>
-    All edge expressed as DXF line object, circle object, arc object and plyline objects are translated to line and arc applied a circular aperture in case of RX-274x. That circular aperture r radius is specified by ```width``` attribute. Default value of width is 0.<br>
-    In case of Excellon, DXF objects are translated to routing path command sequence.
+    All edge expressed as DXF line object, circle object, arc object and plyline objects are translated to line and arc applied a circular aperture in case of RX-274x. That circular aperture radius is specified by ```width``` attribute. Default value of width is 0.<br>
+    In case of Excellon, DXF objects are translated to routing path command sequence.<br>
     This function is useful to generate outline data of pnanelized PCB boad.
 
     ```python
@@ -149,8 +149,8 @@ PCB tools extension provide three type of translation method that affects geomet
     ```
 
 - **draw_mode = DM_FILL**<br>
-    You can translate DXF closed shape such as circle to RX-274x polygon fill sequence.<br>
-    In order to fill closed shape, ```DM_FILL``` has to be set to ```draw_mode``` property. In this mode, All object except closed shapes listed below are ignored.
+    You can translate DXF closed shapes such as circle to RX-274x polygon fill sequence.<br>
+    In order to fill closed shapes, ```DM_FILL``` has to be set to ```draw_mode``` property. In this mode, All object except closed shapes listed below are ignored.
 
     - circle
     - closed polyline 
@@ -158,7 +158,7 @@ PCB tools extension provide three type of translation method that affects geomet
 
     If a closed shape is completly included in other closed shape, The inner shape will be draw with reversed polality of container shape as above example image.<br>
 
-    I assume there are two typical usecase for this mode.<br>
+    I assume there are two typical use cases for this mode.<br>
     One is to arrange logo design on silk layer. This is superior to other method generating raster image data since image data express as vector data.<br>
     The other one is generating gerber data represented cropped area of panelized PCB.
     By merging rectangle and PCB outline data, generate a file represented cropped area as below, and this kind of data is useful to make PCB image look good a little bit.<br>
@@ -169,7 +169,7 @@ PCB tools extension provide three type of translation method that affects geomet
 
     ctx = gerberex.GerberComposition()
 
-    rectangle = gerberex.rectangle(width=100, height=100, units='metric')
+    rectangle = gerberex.rectangle(width=100, height=100, left=0, bottom=0, units='metric')
     rectangle.draw_mode = rectangle.DM_FILL
     ctx.merge(rectangle)
     

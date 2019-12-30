@@ -51,12 +51,13 @@ def _intersections_of_line_and_circle(start, end, center, radius, error_range):
     dr = sqrt(dx * dx + dy * dy)
     D = x1 * y2 - x2 * y1
 
+    distance = abs(dy * x1 - dx * y1) / dr
+
     D2 = D * D
     dr2 = dr * dr
     r2 = radius * radius
     delta = r2 * dr2 - D2
-    e4 = error_range * error_range * error_range * error_range * 10
-    if delta > - e4 and delta < e4:
+    if distance > radius - error_range and distance < radius + error_range:
         delta = 0
     if delta < 0:
         return None
@@ -198,7 +199,7 @@ class DxfLineStatement(DxfStatement):
         denominator = (self.end[0] - self.start[0]) * (point_to[1] - point_from[1]) - \
                       (self.end[1] - self.start[1]) * (point_to[0] - point_from[0])
         de = error_range * error_range
-        if denominator > -de and denominator < de:
+        if denominator >= -de and denominator <= de:
             return []
         from_dx = point_from[0] - self.start[0]
         from_dy = point_from[1] - self.start[1]
@@ -356,16 +357,25 @@ class DxfArcStatement(DxfStatement):
         elif p2 is not None and is_equal_point(p2, self.start, error_range):
             p2 = None
 
+        def is_contained(angle, region, error):
+            if angle >= region[0] - error and angle <= region[1] + error:
+                return True
+            if angle < 0 and region[1] > 0:
+                angle = angle + 2 * pi
+            elif angle > 0 and region[0] < 0:
+                angle = angle - 2 * pi
+            return  angle >= region[0] - error and angle <= region[1] + error
+            
         aerror = error_range * self.radius
         pts = []
         if p1 is not None and p1_t >= 0 and not is_equal_point(p1, self.start, error_range):
             for region in self.angle_regions:
-                if p1_angle >= region[0] - aerror and p1_angle <= region[1] + aerror:
+                if is_contained(p1_angle, region, aerror):
                     pts.append(p1)
                     break
         if p2 is not None and p2_t >= 0 and not is_equal_point(p2, self.start, error_range):
             for region in self.angle_regions:
-                if p2_angle >= region[0] - aerror and p2_angle <= region[1] + aerror:
+                if is_contained(p2_angle, region, aerror):
                     pts.append(p2)
                     break
 

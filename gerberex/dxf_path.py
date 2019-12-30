@@ -301,7 +301,7 @@ class DxfPath(object):
     
     def _judge_cross(self, from_pt, to_pt, index, error_range):
         standard = normalize_vec2d((to_pt[0] - from_pt[0], to_pt[1] - from_pt[1]))
-        normal = (standard[1], standard[0])
+        normal = (standard[1], -standard[0])
         def statements():
             for i in range(index, len(self.statements)):
                 yield self.statements[i]

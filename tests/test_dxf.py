@@ -19,6 +19,7 @@ class TestExcellon(unittest.TestCase):
         cls.OUTPREFIX = 'dxf_'
         cls.METRIC_FILE = os.path.join(cls.INDIR, 'ref_dxf_metric.dxf')
         cls.INCH_FILE = os.path.join(cls.INDIR, 'ref_dxf_inch.dxf')
+        cls.COMPLEX_FILE = os.path.join(cls.INDIR, 'ref_dxf_complex.dxf')
         try:
             os.mkdir(cls.OUTDIR)
         except FileExistsError:
@@ -125,6 +126,27 @@ class TestExcellon(unittest.TestCase):
             self.OUTDIR, self.OUTPREFIX + 'rectangle_inch.gtl')
         dxf = gerberex.DxfFile.rectangle(width=inch(10), height=inch(10), units='inch')
         dxf.write(outfile)
+        self._checkResult(outfile)
+
+    def test_complex_fill(self):
+        outfile = os.path.join(self.OUTDIR, self.OUTPREFIX + 'complex_fill.gtl')
+        dxf = gerberex.read(self.COMPLEX_FILE)
+        dxf.draw_mode = dxf.DM_FILL
+        dxf.write(outfile)
+        self._checkResult(outfile)
+
+    def test_complex_fill_flip(self):
+        outfile = os.path.join(
+            self.OUTDIR, self.OUTPREFIX + 'complex_fill_flip.gtl')
+        ctx = gerberex.GerberComposition()
+        base = gerberex.rectangle(width=100, height=100, left=0, bottom=0, units='metric')
+        base.draw_mode = base.DM_FILL
+        ctx.merge(base)
+        dxf = gerberex.read(self.COMPLEX_FILE)
+        dxf.negate_polarity()
+        dxf.draw_mode = dxf.DM_FILL
+        ctx.merge(dxf)
+        ctx.dump(outfile)
         self._checkResult(outfile)
 
 if __name__ == '__main__':

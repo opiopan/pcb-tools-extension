@@ -10,7 +10,7 @@ def read(fname):
 
 METADATA = {
     'name': 'pcb-tools-extension',
-    'version': "0.9.2",
+    'version': "0.9.3",
     'author': 'Hiroshi Murayama <opiopan@gmail.com>',
     'author_email': "opiopan@gmail.com",
     'description': ("Extension for pcb-tools package to panelize gerber files"),
