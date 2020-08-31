@@ -1,9 +1,9 @@
 pcb-tools-extension
 ===
 pcb-tools-extension is a Python library to panelize gerber files.
-This library is designed based on [pcb-tools](https://github.com/curtacircuitos/pcb-tools) which provides cool functionality to handle PCB such as generationg PCB image from gerber files.
+This library is designed based on [pcb-tools](https://github.com/curtacircuitos/pcb-tools) which provides cool functionality to handle PCB such as generating PCB image from gerber files.
 
-pcb-tools-extension adds following function  to pcb-tools.
+pcb-tools-extension adds following function to pcb-tools.
 
 - Rotate PCB data
 - Write back loaded PCB data (original pcb-tools does not work in some condition)
@@ -68,12 +68,12 @@ ctx.dump('panelized-board.txt')
 ```
 
 ## DXF file translation
-pcb-tools-extension hsa a function to load a DXF file and handle that as same as RX-274x gerber file or Excellon NC file.<br>
+pcb-tools-extension has a function to load a DXF file and handle that as same as RX-274x gerber file or Excellon NC file.<br>
 In this version, Only line, circle, arc, and polyline objects are recognized and are translated to gerber file or NC file.
 
-### Two way to tranlate DXF file
+### Two way to translate DXF file
 Both composition objects, ```GerberComposition``` for RX-274x and ```DrillionComposition``` for Excellon, can accept an object created as result of DXF file loaded. When composition object dump text stream, DXF data tranclate to appropriate format data.<br>
-The object which represent DXF file, can also output translated data directly by ```save``` method. In this case output format is specified by ```filetype``` argument. If ```filetype``` argument is ommited, DXF data is translated to RX-274x gerber data.
+The object which represent DXF file, can also output translated data directly by ```save``` method. In this case output format is specified by ```filetype``` argument. If ```filetype``` argument is omitted, DXF data is translated to RX-274x gerber data.
 
 ```python
 import gerberex
@@ -115,7 +115,7 @@ PCB tools extension provide three type of translation method that affects geomet
 - **draw_mode = DM_LINE**<br>
     All edge expressed as DXF line object, circle object, arc object and plyline objects are translated to line and arc applied a circular aperture in case of RX-274x. That circular aperture radius is specified by ```width``` attribute. Default value of width is 0.<br>
     In case of Excellon, DXF objects are translated to routing path command sequence.<br>
-    This function is useful to generate outline data of pnanelized PCB boad.
+    This function is useful to generate outline data of panelized PCB board.
 
     ```python
     import gerberex
@@ -128,8 +128,8 @@ PCB tools extension provide three type of translation method that affects geomet
 
 - **draw_mode = DM_MOUSE_BITES**<br>
     <img alt="mouse bites" src="https://raw.githubusercontent.com/wiki/opiopan/pcb-tools-extension/images/mousebites.png" width=200 align="right">
-    If DM_MOUSE_BITES is specified for draw_mode, filled circles are arranged at equal intervals along a paths consisted of DXF line, arc, circle, and plyline objects. 
-    DXF file object in this state can be merged to excellon file also. That means you can arrange mouse bites easily.    
+    If DM_MOUSE_BITES is specified for draw_mode, filled circles are arranged at equal intervals along a paths consisted of DXF line, arc, circle, and polyline objects.
+    DXF file object in this state can be merged to Excellon file also. That means you can arrange mouse bites easily.
 
     ```python
     import gerberex
@@ -153,10 +153,10 @@ PCB tools extension provide three type of translation method that affects geomet
     In order to fill closed shapes, ```DM_FILL``` has to be set to ```draw_mode``` property. In this mode, All object except closed shapes listed below are ignored.
 
     - circle
-    - closed polyline 
+    - closed polyline
     - closed path which consists of lines and arcs
 
-    If a closed shape is completly included in other closed shape, The inner shape will be draw with reversed polality of container shape as above example image.<br>
+    If a closed shape is completely included in other closed shape, The inner shape will be draw with reversed polarity of container shape as above example image.<br>
 
     I assume there are two typical use cases for this mode.<br>
     One is to arrange logo design on silk layer. This is superior to other method generating raster image data since image data express as vector data.<br>
@@ -172,7 +172,7 @@ PCB tools extension provide three type of translation method that affects geomet
     rectangle = gerberex.rectangle(width=100, height=100, left=0, bottom=0, units='metric')
     rectangle.draw_mode = rectangle.DM_FILL
     ctx.merge(rectangle)
-    
+
     outline = gerberex.read('outline.dxf')
     outline.draw_mode = outline.DM_FILL
     outline.negate_polarity()
@@ -201,10 +201,10 @@ pcb-tools-extension generate data block stream to focus equivalence of final ima
 There are some difference between input data and output data as below.
 
 - **Aperture definition [RS-274x]**<br>
-    When gerber data is rotated, it's necessory to rotate not only coordinates whilch indicate locations of drawing aperture, but also aperture geometory itself.
+    When gerber data is rotated, it's necessary to rotate not only coordinates which indicate locations of drawing aperture, but also aperture geometry itself.
     However, standard aperture templates, such as rectangle, cannot rotate. These standard aperture templates can be placed only horizontally or vertically.<br>
     Threfore, pcb-tools-extension replace aperture definitions using standard aperture template to aperture macro that represent equivalent shape.<br>
-    For example, In case of rotating folowing aperture definition 20 degrees counter clockwise,
+    For example, In case of rotating following aperture definition 20 degrees counter clockwise,
 
     ```rs-274x
     %ADD10R,1X0.5X0.2*%
@@ -221,33 +221,33 @@ There are some difference between input data and output data as below.
 
 - **File Scope Modifier [RS-274x]**<br>
     Commands that affect entire image and should be specified only once in a file, such as ```MI``` (Mirror Image) command, sometimes cause contradiction when multiple gerber file are merged.<br>
-    For example, when mergeing a file containing ```%MIA1B0*%``` command and a file containing ```%MIA0B1*``` command, which command should remain as output?
-    Of cause, it is impossible that generate correct merged image by specifiing any ```MI``` command.<br>
-    pcb-tools-extension translate coordinate data reflecting these file socpe modifier  to address this probrem, then ommit these modifier command.<br>
+    For example, when merging a file containing ```%MIA1B0*%``` command and a file containing ```%MIA0B1*``` command, which command should remain as output?
+    Of cause, it is impossible that generate correct merged image by specifying any ```MI``` command.<br>
+    pcb-tools-extension translates coordinate data reflecting this file scope modifier to address this problem, then omit this modifier command.<br>
     ```MI```, ```OF```, ```SF```, ```AS```, ```IP```, and ```IR``` are in a this category.
 
 - **Coodinate Normalizing [RS-274x, Excellon]**<br>
     RS-274x specification and Excellon specification allow various notation to express a coordinate. However pcb-tools-extension normalize coordinate notation in order to correct deprecated notation and ease internal process as below.
-    
+
     - Relative coordinates are translated to absolute coordinates.
-    - Ommited coordinate values are compensated.
-    - Leading zeros are ommited.
+    - Omitted coordinate values are compensated.
+    - Leading zeros are omitted.
 
 - **Single Quadlant mode [RS-274x]**<br>
-    Cercular interpolation coordinate data in single quadlant is difficult to rotate, because circular arc may pass across two quadlants after rotation.<br>
-    In order to avoid this problem, pcb-tools-extension change single quadlant mode coordinates specification to multi quadlangt mode.
+    Circular interpolation coordinate data in single quadrant is difficult to rotate, because circular arc may pass across two quadrants after rotation.<br>
+    In order to avoid this problem, pcb-tools-extension change single quadrant mode coordinates specification to multi quadrant mode.
 
 - **NC controll command [Excellon]**<br>
-    Form histrical reason, Excellon NC controll format is used to specify drill information to PCB fabricator.<br>
-    On the other hand, from PCB fabricator point of view, they don't need information other than geometric information, such as drill speed. Because these NC controll sequence doesn't send to NC machine directly, PCB fabricator import customers excellon NC file to their CAD / CAM to pnaelize and check, then they export NC controll data for their NC machine.<br>
-    pcb-tools-extension ommit all NC command which do not contribute to geometry expression. Specifically, only tool definitions (diametor of drill), tool selections, drilling coordinates, and routing paths are output.
+    For historical reasons, Excellon NC control format is used to specify drill information to PCB fabricator.<br>
+    On the other hand, from PCB fabricator point of view, they don't need information other than geometric information, such as drill speed. Because these NC control sequence doesn't send to NC machine directly, PCB fabricator import customers Excellon NC file to their CAD / CAM to panelize and check, then they export NC control data for their NC machine.<br>
+    pcb-tools-extension omit all NC command which do not contribute to geometry expression. Specifically, only tool definitions (diameter of drill), tool selections, drilling coordinates, and routing paths are output.
 
 - **Unimportant Command [RS-274x, Excellon]**<br>
-    Commands not affecting final image such as comment are ommited.
+    Commands not affecting final image such as comment are omitted.
 
 ### Negative image polarity
 Sometimes, ```%IPNEG*%``` is specified at header of RS-274x file to create negative image. <br>
-As mentioned [above](#Equivalence%20of%20output), ```IP``` command is ommited when pcb-tools-extension generate output file. In this case, image polarity is nagated by using ```LP``` command. However this generated file doesn't equal to original image since it does'nt contain base dark image.<br>
+As mentioned [above](#Equivalence%20of%20output), ```IP``` command is omitted when pcb-tools-extension generate output file. In this case, image polarity is negated by using ```LP``` command. However this generated file doesn't equal to original image since it doesn't contain base dark image.<br>
 Please merge base dark rectangle explicitly when you handle negative image file as below.
 
 ```python
@@ -273,7 +273,7 @@ From the imaging point of view, pcb-tools-extension has following limitations.
 - Aperture block defined by ```AB``` command cannot be handled correctly.
 
 ### Excellon
-pcb-tools-extension extends excellon parser in [pcb-tools](https://github.com/curtacircuitos/pcb-tools) to support routing operation. However following limitations still remain.
+pcb-tools-extension extends Excellon parser in [pcb-tools](https://github.com/curtacircuitos/pcb-tools) to support routing operation. However following limitations still remain.
 
 - User defined stored pattern defined by ```M99``` command cannot be handled.
 - Canned text specified by ```M97``` command cannot be handled.
