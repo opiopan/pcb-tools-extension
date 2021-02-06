@@ -114,8 +114,8 @@ class ExcellonFileEx(ExcellonFile):
                 if isinstance(stmt, ToolSelectionStmt):
                     current_tool = file.tools[stmt.tool]
                 elif isinstance(stmt, DrillModeStmt):
-                    rout = make_rout(status, rout_statements)
-                    rout_statements = []
+                    rout = make_rout(status, rout_nodes)
+                    rout_nodes = []
                     if rout is not None:
                         yield rout
                     status = STAT_DRILL
@@ -137,7 +137,7 @@ class ExcellonFileEx(ExcellonFile):
                     status = STAT_ROUT_DOWN
                 elif isinstance(stmt, RetractWithClampingStmt) or isinstance(stmt, RetractWithoutClampingStmt):
                     rout = make_rout(status, rout_nodes)
-                    rout_statements = []
+                    rout_nodes = []
                     if rout is not None:
                         yield rout
                     status = STAT_ROUT_UP
