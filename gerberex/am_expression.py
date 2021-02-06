@@ -49,6 +49,8 @@ class AMConstantExpression(AMExpression):
         return self
     
     def to_gerber(self, settings=None):
+        if isinstance(self._value, str):
+            return self._value
         gerber = '%.6g' % self._value
         return '%.6f' % self._value if 'e' in gerber else gerber
 
